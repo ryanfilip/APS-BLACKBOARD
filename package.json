@@ -1,0 +1,18 @@
+{
+  "name": "techdiagnose",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TechDiagnose — diagnóstico de incidentes com o padrão arquitetural Blackboard (projeto acadêmico, CEFET/RJ).",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "test": "npm run test --workspaces --if-present",
+    "test:api": "npm run test -w apps/api",
+    "test:web": "npm run test -w apps/web",
+    "prisma:generate": "npm run prisma:generate -w apps/api",
+    "prisma:migrate": "npm run prisma:migrate -w apps/api"
+  }
+}
