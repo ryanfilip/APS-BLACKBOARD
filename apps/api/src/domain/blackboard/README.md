@@ -1,4 +1,6 @@
 # domain/blackboard
 
-Pasta reservada para o Bloco 4. Será preenchida nos Blocos 4–6
-(Blackboard, Knowledge Sources e Control Component).
+`Blackboard.js` — quadro compartilhado em memória (Bloco 4). Uma instância por diagnóstico,
+em JavaScript puro, sem dependência de Express, Prisma ou qualquer framework.
+
+O Control Component (Bloco 6) ficará em `domain/control`.
