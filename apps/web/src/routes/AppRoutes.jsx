@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import CreateIncident from '../pages/CreateIncident.jsx';
 import Dashboard from '../pages/Dashboard.jsx';
 import Login from '../pages/Login.jsx';
 import Register from '../pages/Register.jsx';
@@ -12,6 +13,7 @@ export default function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/incidents/new" element={<CreateIncident />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

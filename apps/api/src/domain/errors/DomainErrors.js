@@ -22,3 +22,9 @@ export class InvalidCredentialsError extends DomainError {
     super(message);
   }
 }
+
+export class IncidentNotFoundError extends DomainError {
+  constructor(message = 'Incidente não encontrado') {
+    super(message);
+  }
+}
