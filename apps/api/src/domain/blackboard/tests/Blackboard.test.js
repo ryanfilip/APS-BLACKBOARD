@@ -120,6 +120,7 @@ describe('Blackboard', () => {
       const evidence = new Evidence({
         description: 'Nenhum LED acende com o carregador conectado',
         supports: h.id,
+        polarity: 'SUPPORTS',
         source: 'KS1',
       });
 
@@ -131,7 +132,12 @@ describe('Blackboard', () => {
     });
 
     it('lança ValidationError quando a hipótese referenciada não existe', () => {
-      const evidence = new Evidence({ description: 'Teste', supports: 'inexistente', source: 'KS1' });
+      const evidence = new Evidence({
+        description: 'Teste',
+        supports: 'inexistente',
+        polarity: 'SUPPORTS',
+        source: 'KS1',
+      });
 
       expect(() => blackboard.addEvidence(evidence)).toThrow(ValidationError);
       expect(blackboard.evidences).toHaveLength(0);
@@ -139,6 +145,57 @@ describe('Blackboard', () => {
 
     it('rejeita valores que não são Evidence', () => {
       expect(() => blackboard.addEvidence({ supports: 'x' })).toThrow(ValidationError);
+    });
+
+    it('não adiciona evidência duplicada (mesma hipótese, polaridade e descrição)', () => {
+      const h = hypothesis();
+      blackboard.addHypothesis(h);
+      const make = (overrides = {}) =>
+        new Evidence({
+          description: 'Sintoma de superaquecimento',
+          supports: h.id,
+          polarity: 'SUPPORTS',
+          source: 'KS1',
+          ...overrides,
+        });
+
+      expect(blackboard.addEvidence(make())).toBe(true);
+      expect(blackboard.addEvidence(make({ description: 'sintoma de SUPERAQUECIMENTO' }))).toBe(false);
+      expect(blackboard.evidences).toHaveLength(1);
+    });
+
+    it('a mesma descrição com polaridade oposta não é duplicata', () => {
+      const h = hypothesis();
+      blackboard.addHypothesis(h);
+      const make = (polarity) =>
+        new Evidence({ description: 'Ventoinha funcionando', supports: h.id, polarity, source: 'KS1' });
+
+      expect(blackboard.addEvidence(make('SUPPORTS'))).toBe(true);
+      expect(blackboard.addEvidence(make('REFUTES'))).toBe(true);
+      expect(blackboard.evidences).toHaveLength(2);
+    });
+
+    it('getEvidencesFor filtra pela polaridade quando ela é informada', () => {
+      const h = hypothesis();
+      blackboard.addHypothesis(h);
+      const supports = new Evidence({
+        description: 'Computador desliga sozinho',
+        supports: h.id,
+        polarity: 'SUPPORTS',
+        source: 'KS1',
+      });
+      const refutes = new Evidence({
+        description: 'Temperatura normal no teste',
+        supports: h.id,
+        polarity: 'REFUTES',
+        source: 'KS1',
+      });
+      blackboard.addEvidence(supports);
+      blackboard.addEvidence(refutes);
+
+      expect(blackboard.getEvidencesFor(h.id)).toEqual([supports, refutes]);
+      expect(blackboard.getEvidencesFor(h.id, 'SUPPORTS')).toEqual([supports]);
+      expect(blackboard.getEvidencesFor(h.id, 'REFUTES')).toEqual([refutes]);
     });
   });
 
@@ -176,7 +233,12 @@ describe('Blackboard', () => {
       const h = hypothesis({ confidence: 80 });
       blackboard.addHypothesis(h);
       blackboard.addEvidence(
-        new Evidence({ description: 'Sem LEDs acesos', supports: h.id, source: 'KS1' }),
+        new Evidence({
+          description: 'Sem LEDs acesos',
+          supports: h.id,
+          polarity: 'REFUTES',
+          source: 'KS1',
+        }),
       );
 
       const state = blackboard.getState();
@@ -199,7 +261,13 @@ describe('Blackboard', () => {
         },
       ]);
       expect(state.evidences).toEqual([
-        { id: expect.any(String), description: 'Sem LEDs acesos', supports: h.id, source: 'KS1' },
+        {
+          id: expect.any(String),
+          description: 'Sem LEDs acesos',
+          supports: h.id,
+          polarity: 'REFUTES',
+          source: 'KS1',
+        },
       ]);
     });
 

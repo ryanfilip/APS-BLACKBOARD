@@ -59,21 +59,31 @@ describe('Hypothesis', () => {
 });
 
 describe('Evidence', () => {
-  it('guarda o id da hipótese em supports', () => {
-    const evidence = new Evidence({ description: 'Teste de RAM falhou', supports: 'h-1', source: 'KS3' });
+  const base = { description: 'Teste de RAM falhou', supports: 'h-1', polarity: 'SUPPORTS', source: 'KS3' };
+
+  it('guarda o id da hipótese em supports e a polaridade', () => {
+    const evidence = new Evidence(base);
 
     expect(evidence.supports).toBe('h-1');
-    expect(evidence.toJSON()).toEqual({
-      id: evidence.id,
-      description: 'Teste de RAM falhou',
-      supports: 'h-1',
-      source: 'KS3',
-    });
+    expect(evidence.polarity).toBe('SUPPORTS');
+    expect(evidence.toJSON()).toEqual({ id: evidence.id, ...base });
+  });
+
+  it.each(['SUPPORTS', 'REFUTES'])('aceita a polaridade %s', (polarity) => {
+    expect(new Evidence({ ...base, polarity }).polarity).toBe(polarity);
+  });
+
+  it.each([undefined, null, '', 'supports', 'NEUTRAL', true])('rejeita a polaridade %s', (polarity) => {
+    expect(() => new Evidence({ ...base, polarity })).toThrow(ValidationError);
+  });
+
+  it('a polaridade é obrigatória (não há valor padrão)', () => {
+    const { polarity, ...withoutPolarity } = base;
+
+    expect(() => new Evidence(withoutPolarity)).toThrow(ValidationError);
   });
 
   it.each(['description', 'supports', 'source'])('exige %s', (field) => {
-    const data = { description: 'x', supports: 'h-1', source: 'KS1', [field]: '' };
-
-    expect(() => new Evidence(data)).toThrow(ValidationError);
+    expect(() => new Evidence({ ...base, [field]: '' })).toThrow(ValidationError);
   });
 });

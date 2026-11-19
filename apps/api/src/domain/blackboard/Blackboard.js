@@ -85,7 +85,11 @@ export class Blackboard {
     return true;
   }
 
-  /** A evidência precisa referenciar uma hipótese que já esteja no quadro. Retorna true se adicionou. */
+  /**
+   * A evidência precisa referenciar uma hipótese que já esteja no quadro.
+   * Retorna true se adicionou, ou false se já existia evidência equivalente
+   * (mesma hipótese, mesma polaridade e mesma descrição).
+   */
   addEvidence(evidence) {
     if (!(evidence instanceof Evidence)) {
       throw new ValidationError('A evidência deve ser uma instância de Evidence');
@@ -95,6 +99,17 @@ export class Blackboard {
     }
     if (this.#evidences.some((existing) => existing.id === evidence.id)) {
       throw new ValidationError(`Já existe uma evidência com o id ${evidence.id}`);
+    }
+
+    const key = normalize(evidence.description);
+    const isDuplicate = this.#evidences.some(
+      (existing) =>
+        existing.supports === evidence.supports &&
+        existing.polarity === evidence.polarity &&
+        normalize(existing.description) === key,
+    );
+    if (isDuplicate) {
+      return false;
     }
 
     this.#evidences.push(evidence);
@@ -113,8 +128,12 @@ export class Blackboard {
     return this.#hypotheses.some((hypothesis) => normalize(hypothesis.description) === key);
   }
 
-  getEvidencesFor(hypothesisId) {
-    return this.#evidences.filter((evidence) => evidence.supports === hypothesisId);
+  /** Evidências de uma hipótese; `polarity` ('SUPPORTS' ou 'REFUTES') é opcional e filtra o resultado. */
+  getEvidencesFor(hypothesisId, polarity) {
+    return this.#evidences.filter(
+      (evidence) =>
+        evidence.supports === hypothesisId && (polarity === undefined || evidence.polarity === polarity),
+    );
   }
 
   /** Estado completo em objetos simples e serializáveis (arrays em ordem de inserção). */
