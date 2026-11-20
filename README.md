@@ -215,10 +215,10 @@ npm install                                     # instala API e web de uma vez (
 **Opção A: Docker (mais simples).** Os valores abaixo já combinam com o `.env.example`:
 
 ```bash
-docker run --name techdiagnose-db \
-  -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=techdiagnose \
+docker run --name techdiagnose-pg \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=techdiagnose \
   -p 5432:5432 -v techdiagnose-data:/var/lib/postgresql/data \
-  -d postgres:16
+  -d postgres:17
 ```
 
 Depois de reiniciar o computador, religue o contêiner com `docker start techdiagnose-db`
