@@ -38,8 +38,21 @@ model Incident {
   status      IncidentStatus @default(OPEN)
   userId      String
   user        User           @relation(fields: [userId], references: [id])
+  diagnoses   Diagnosis[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   @@index([userId])
+}
+
+model Diagnosis {
+  id         String   @id @default(uuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id])
+  state      Json
+  iterations Int
+  finishedBy String
+  createdAt  DateTime @default(now())
+
+  @@index([incidentId])
 }

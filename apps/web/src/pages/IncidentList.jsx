@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
 
 const STATUS_LABELS = {
@@ -17,6 +18,9 @@ export default function IncidentList() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [runningId, setRunningId] = useState(null);
+  const [runError, setRunError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +44,18 @@ export default function IncidentList() {
     };
   }, []);
 
+  async function handleDiagnose(incidentId) {
+    setRunError('');
+    setRunningId(incidentId);
+    try {
+      await api.post(`/incidents/${incidentId}/diagnose`);
+      navigate(`/incidents/${incidentId}/diagnosis`);
+    } catch (err) {
+      setRunError(err.response?.data?.error ?? 'Não foi possível executar o diagnóstico. Tente novamente.');
+      setRunningId(null);
+    }
+  }
+
   return (
     <section aria-labelledby="incident-list-title">
       <h2 id="incident-list-title" className="text-lg font-semibold text-slate-900">
@@ -57,6 +73,12 @@ export default function IncidentList() {
       {!loading && !error && incidents.length === 0 && (
         <p className="mt-4 rounded border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-slate-600">
           Você ainda não relatou nenhum problema. Use o botão acima para registrar o primeiro.
+        </p>
+      )}
+
+      {runError && (
+        <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+          {runError}
         </p>
       )}
 
@@ -79,13 +101,23 @@ export default function IncidentList() {
                 </span>
               </div>
 
-              {/* Placeholder: a tela de detalhes será implementada em um bloco futuro. */}
-              <button
-                type="button"
-                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Ver Detalhes
-              </button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => handleDiagnose(incident.id)}
+                  disabled={runningId !== null}
+                  className="rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
+                >
+                  {runningId === incident.id ? 'Executando...' : 'Executar Diagnóstico'}
+                </button>
+                {/* Placeholder: a tela de detalhes será implementada em um bloco futuro. */}
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Ver Detalhes
+                </button>
+              </div>
             </li>
           ))}
         </ul>

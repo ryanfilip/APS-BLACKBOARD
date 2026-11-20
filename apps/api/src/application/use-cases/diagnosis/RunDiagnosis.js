@@ -1,5 +1,6 @@
 import { Blackboard } from '../../../domain/blackboard/Blackboard.js';
 import { ControlComponent } from '../../../domain/control/ControlComponent.js';
+import { Diagnosis } from '../../../domain/entities/Diagnosis.js';
 import { IncidentNotFoundError, ValidationError } from '../../../domain/errors/DomainErrors.js';
 import {
   KS1_Hardware,
@@ -21,12 +22,13 @@ function createKnowledgeSources() {
 }
 
 /**
- * Roda o diagnóstico de um incidente do usuário e devolve o resultado do Control Component:
- * { state, iterations, finishedBy }. Neste bloco nada é salvo no banco (isso fica para o Bloco 7).
+ * Roda o diagnóstico de um incidente do usuário, salva o resultado e devolve o diagnóstico salvo.
+ * O `state` do Blackboard (getState) é persistido como veio, sem transformação.
  */
 export class RunDiagnosis {
-  constructor({ incidentRepository, maxIterations }) {
+  constructor({ incidentRepository, diagnosisRepository, maxIterations }) {
     this.incidentRepository = incidentRepository;
+    this.diagnosisRepository = diagnosisRepository;
     this.maxIterations = maxIterations;
   }
 
@@ -53,6 +55,12 @@ export class RunDiagnosis {
       maxIterations: this.maxIterations,
     });
 
-    return control.run(blackboard);
+    const { state, iterations, finishedBy } = control.run(blackboard);
+
+    const saved = await this.diagnosisRepository.create(
+      Diagnosis.create({ incidentId: incident.id, state, iterations, finishedBy }),
+    );
+
+    return { diagnosis: saved.toPublic() };
   }
 }

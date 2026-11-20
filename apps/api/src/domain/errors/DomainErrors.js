@@ -28,3 +28,9 @@ export class IncidentNotFoundError extends DomainError {
     super(message);
   }
 }
+
+export class DiagnosisNotFoundError extends DomainError {
+  constructor(message = 'Este incidente ainda não possui diagnóstico') {
+    super(message);
+  }
+}
