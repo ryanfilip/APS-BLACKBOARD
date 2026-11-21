@@ -550,6 +550,8 @@ Para zerar o banco de desenvolvimento (apaga todos os dados): `cd apps/api && np
 | `/incidents/:id/diagnosis` | `DiagnosisResult.jsx` | sim | Resultado do diagnóstico |
 | qualquer outra | | | Redireciona para `/dashboard` |
 
+> ⚠️ **Nota sobre o botão "Ver Detalhes":** Na tela de listagem de incidentes (`IncidentList.jsx`), o botão "Ver Detalhes" é atualmente um *placeholder* (ele não abre nenhuma tela nem executa ação). Ele está reservado para a futura tela de detalhes do incidente, listada como prioridade **P1** na Seção 14 deste documento. Apenas o botão **"Executar Diagnóstico"** está funcional no momento.
+
 - **Sessão:** `contexts/AuthContext.jsx` guarda `user`, `token` e `loading`. O token fica no `localStorage`
   (chave `techdiagnose.token`) e, ao abrir o app, a sessão é restaurada com `GET /auth/me`. Hook: `useAuth()`.
 - **Rotas protegidas:** `routes/ProtectedRoute.jsx` mostra "Carregando sessão..." enquanto restaura e manda para
