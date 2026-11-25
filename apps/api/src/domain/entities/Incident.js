@@ -12,6 +12,8 @@ export class Incident {
     userId,
     createdAt,
     updatedAt,
+    ownerName,
+    diagnosisCount,
   }) {
     this.id = id;
     this.title = title;
@@ -21,6 +23,9 @@ export class Incident {
     this.userId = userId;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
+    // Dados de leitura opcionais, preenchidos pelo repositório quando disponíveis.
+    this.ownerName = ownerName;
+    this.diagnosisCount = diagnosisCount;
   }
 
   static create({ title, description, equipment, userId }) {
@@ -51,7 +56,7 @@ export class Incident {
   }
 
   toPublic() {
-    return {
+    const data = {
       id: this.id,
       title: this.title,
       description: this.description,
@@ -60,5 +65,8 @@ export class Incident {
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
+    if (this.ownerName !== undefined) data.ownerName = this.ownerName;
+    if (this.diagnosisCount !== undefined) data.diagnosisCount = this.diagnosisCount;
+    return data;
   }
 }

@@ -53,6 +53,26 @@ describe('IncidentList', () => {
     expect(await screen.findByText('Página de detalhes')).toBeTruthy();
   });
 
+  it('sem diagnóstico, não mostra "Ver Diagnóstico"', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, diagnosisCount: 0 }] } });
+
+    renderList();
+
+    expect(await screen.findByRole('button', { name: 'Executar Diagnóstico' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ver Diagnóstico' })).toBeNull();
+  });
+
+  it('com diagnóstico, mostra "Ver Diagnóstico" (que abre o último) e "Diagnosticar Novamente"', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, diagnosisCount: 2 }] } });
+
+    renderList();
+    expect(await screen.findByRole('button', { name: 'Diagnosticar Novamente' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Diagnóstico' }));
+
+    expect(await screen.findByText('Página do diagnóstico')).toBeTruthy();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('mostra mensagem quando não há chamados', async () => {
     api.get.mockResolvedValue({ data: { incidents: [] } });
 

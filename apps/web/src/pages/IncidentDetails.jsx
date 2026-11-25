@@ -117,8 +117,17 @@ export default function IncidentDetails() {
                 disabled={running}
                 className="rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
               >
-                {running ? 'Executando...' : 'Executar Diagnóstico'}
+                {running ? 'Executando...' : incident.diagnosisCount > 0 ? 'Diagnosticar Novamente' : 'Executar Diagnóstico'}
               </button>
+              {incident.diagnosisCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/incidents/${id}/diagnosis`)}
+                  className="rounded border border-teal-700 bg-white px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50"
+                >
+                  Ver Diagnóstico
+                </button>
+              )}
             </div>
           </>
         )}

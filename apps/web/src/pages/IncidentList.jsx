@@ -91,8 +91,21 @@ export default function IncidentList() {
                   disabled={runningId !== null}
                   className="rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
                 >
-                  {runningId === incident.id ? 'Executando...' : 'Executar Diagnóstico'}
+                  {runningId === incident.id
+                    ? 'Executando...'
+                    : incident.diagnosisCount > 0
+                      ? 'Diagnosticar Novamente'
+                      : 'Executar Diagnóstico'}
                 </button>
+                {incident.diagnosisCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/incidents/${incident.id}/diagnosis`)}
+                    className="rounded border border-teal-700 px-3 py-1.5 text-sm font-medium text-teal-800 hover:bg-teal-50"
+                  >
+                    Ver Diagnóstico
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => navigate(`/incidents/${incident.id}`)}
