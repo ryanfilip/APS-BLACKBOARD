@@ -324,6 +324,17 @@ npm run prisma:seed
 Pode rodar mais de uma vez: nada é duplicado. Depois, o ADMIN promove outros usuários pela tela **Gerenciar
 Usuários**. O novo papel vale a partir do **próximo login** do usuário promovido (o papel viaja no token).
 
+**Para quem está testando em outra máquina:**
+
+- Os logins acima são **os mesmos para todos**, porque estão definidos em `apps/api/prisma/seed.js`, que vai junto com o
+  repositório.
+- Mas **cada pessoa tem o próprio banco**: o sistema roda localmente, então usuários e chamados criados por você não
+  aparecem para os outros. Cada um precisa criar o banco, o próprio `apps/api/.env` (com a senha do PostgreSQL **da
+  sua máquina**; esse arquivo não vai para o Git) e rodar `prisma:generate`, `prisma:migrate` e `prisma:seed`.
+- Se um desses e-mails **já existir** no seu banco (por exemplo, cadastrado à mão), o seed **não altera a senha** dele.
+  Por isso, não use esses e-mails no cadastro manual.
+- A senha `123456` é só para demonstração. Não use esses usuários em um ambiente real.
+
 ### 5.8 Rodar os testes
 
 ```bash
