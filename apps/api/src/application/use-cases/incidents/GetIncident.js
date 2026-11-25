@@ -1,23 +1,18 @@
-import { IncidentNotFoundError, ValidationError } from '../../../domain/errors/DomainErrors.js';
+import { findAccessibleIncident } from './findAccessibleIncident.js';
 
 export class GetIncident {
   constructor({ incidentRepository }) {
     this.incidentRepository = incidentRepository;
   }
 
-  async execute({ id, userId }) {
-    if (typeof userId !== 'string' || userId.length === 0) {
-      throw new ValidationError('O usuário é obrigatório');
-    }
-
-    const incident = await this.incidentRepository.findById(id, userId);
-
-    // Dupla checagem de propriedade (o repositório já filtra por userId).
-    // Incidente de outro usuário responde como "não encontrado" para não revelar que existe.
-    if (!incident || !incident.belongsTo(userId)) {
-      throw new IncidentNotFoundError();
-    }
-
-    return { incident: incident.toPublic() };
+  /** USER vê só os próprios incidentes; TECH/ADMIN veem qualquer um. */
+  async execute({ id, userId, role }) {
+    const incident = await findAccessibleIncident(this.incidentRepository, { incidentId: id, userId, role });
+    // O que este usuário pode fazer com o chamado (a tela usa para mostrar os botões).
+    const permissions = {
+      canEdit: incident.canBeEditedBy({ userId }),
+      canDelete: incident.canBeDeletedBy({ userId, role }),
+    };
+    return { incident: { ...incident.toPublic(), permissions } };
   }
 }

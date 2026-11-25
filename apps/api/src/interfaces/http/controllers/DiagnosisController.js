@@ -1,44 +1,72 @@
-import {
-  DiagnosisNotFoundError,
-  IncidentNotFoundError,
-  ValidationError,
-} from '../../../domain/errors/DomainErrors.js';
+import { handleDomainError } from '../middlewares/handleDomainError.js';
+import { reviewHypothesisSchema } from '../validators/diagnosisValidators.js';
 
 /**
  * Controller fino: chama o caso de uso e traduz erros em status HTTP.
- * O userId vem sempre do token (req.user); o id do incidente vem da URL.
+ * O usuário (id e papel) vem sempre do token (req.user); o id do incidente vem da URL.
  */
 export class DiagnosisController {
-  constructor({ runDiagnosis, getDiagnosis }) {
+  constructor({ runDiagnosis, getDiagnosis, listDiagnoses, reviewHypothesis }) {
     this.runDiagnosis = runDiagnosis;
     this.getDiagnosis = getDiagnosis;
+    this.listDiagnoses = listDiagnoses;
+    this.reviewHypothesis = reviewHypothesis;
   }
 
   run = async (req, res, next) => {
     try {
-      const result = await this.runDiagnosis.execute({ incidentId: req.params.id, userId: req.user.id });
+      const result = await this.runDiagnosis.execute({
+        incidentId: req.params.id,
+        userId: req.user.id,
+        role: req.user.role,
+      });
       return res.status(201).json(result);
     } catch (error) {
-      return this.#handleError(error, res, next);
+      return handleDomainError(error, res, next);
     }
   };
 
   get = async (req, res, next) => {
     try {
-      const result = await this.getDiagnosis.execute({ incidentId: req.params.id, userId: req.user.id });
+      const result = await this.getDiagnosis.execute({
+        incidentId: req.params.id,
+        diagnosisId: req.params.diagnosisId,
+        userId: req.user.id,
+        role: req.user.role,
+      });
       return res.status(200).json(result);
     } catch (error) {
-      return this.#handleError(error, res, next);
+      return handleDomainError(error, res, next);
     }
   };
 
-  #handleError(error, res, next) {
-    if (error instanceof ValidationError) {
-      return res.status(400).json({ error: error.message });
+  list = async (req, res, next) => {
+    try {
+      const result = await this.listDiagnoses.execute({
+        incidentId: req.params.id,
+        userId: req.user.id,
+        role: req.user.role,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleDomainError(error, res, next);
     }
-    if (error instanceof IncidentNotFoundError || error instanceof DiagnosisNotFoundError) {
-      return res.status(404).json({ error: error.message });
+  };
+
+  review = async (req, res, next) => {
+    try {
+      const { status } = reviewHypothesisSchema.parse(req.body ?? {});
+      const result = await this.reviewHypothesis.execute({
+        incidentId: req.params.id,
+        diagnosisId: req.params.diagnosisId,
+        hypothesisId: req.params.hypothesisId,
+        status,
+        userId: req.user.id,
+        role: req.user.role,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleDomainError(error, res, next);
     }
-    return next(error);
-  }
+  };
 }

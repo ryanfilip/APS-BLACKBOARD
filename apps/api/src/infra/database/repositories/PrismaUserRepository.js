@@ -48,4 +48,13 @@ export class PrismaUserRepository extends UserRepository {
       throw error;
     }
   }
+
+  async findAll() {
+    const records = await this.client.user.findMany({ orderBy: { createdAt: 'asc' } });
+    return records.map(toEntity);
+  }
+
+  async updateRole(id, role) {
+    return toEntity(await this.client.user.update({ where: { id }, data: { role } }));
+  }
 }

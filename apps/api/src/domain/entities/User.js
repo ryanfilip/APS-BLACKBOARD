@@ -2,6 +2,13 @@ import { ValidationError } from '../errors/DomainErrors.js';
 
 export const ROLES = Object.freeze(['USER', 'TECH', 'ADMIN']);
 
+/** Papéis da equipe de suporte: enxergam e atendem os chamados de todos os usuários. */
+export const STAFF_ROLES = Object.freeze(['TECH', 'ADMIN']);
+
+export function isStaff(role) {
+  return STAFF_ROLES.includes(role);
+}
+
 export class User {
   constructor({ id, name, email, passwordHash, role = 'USER', createdAt }) {
     this.id = id;

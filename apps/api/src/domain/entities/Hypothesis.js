@@ -29,6 +29,11 @@ export class Hypothesis {
     this.status = 'REJECTED';
   }
 
+  /** Desfaz a revisão: a hipótese volta a ficar em análise. */
+  reopen() {
+    this.status = 'OPEN';
+  }
+
   toJSON() {
     return {
       id: this.id,

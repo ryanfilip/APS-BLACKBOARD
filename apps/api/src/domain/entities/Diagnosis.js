@@ -1,5 +1,16 @@
 import { FINISHED_BY } from '../control/ControlComponent.js';
-import { ValidationError } from '../errors/DomainErrors.js';
+import { HypothesisNotFoundError, ValidationError } from '../errors/DomainErrors.js';
+import { Evidence } from './Evidence.js';
+import { Hypothesis, HYPOTHESIS_STATUSES } from './Hypothesis.js';
+
+/** Origem das evidências escritas por um técnico humano ao revisar uma hipótese. */
+export const REVIEW_SOURCE = 'Revisão técnica';
+
+const REVIEW_ACTIONS = Object.freeze({
+  CONFIRMED: { apply: (h) => h.confirm(), polarity: 'SUPPORTS', verb: 'Confirmada' },
+  REJECTED: { apply: (h) => h.reject(), polarity: 'REFUTES', verb: 'Descartada' },
+  OPEN: { apply: (h) => h.reopen(), polarity: null, verb: null },
+});
 
 /**
  * Resultado persistido de uma execução do Control Component sobre um incidente.
@@ -36,6 +47,66 @@ export class Diagnosis {
     }
 
     return new Diagnosis({ incidentId, state, iterations, finishedBy });
+  }
+
+  /**
+   * Um técnico (especialista humano) escreve no quadro já salvo: muda o status da hipótese
+   * e registra uma evidência de origem REVIEW_SOURCE que a apoia (confirmação) ou a refuta
+   * (descarte). Reabrir (OPEN) remove a revisão anterior. Substitui `this.state` por uma cópia.
+   */
+  reviewHypothesis({ hypothesisId, status, reviewerName, reviewedAt }) {
+    if (!HYPOTHESIS_STATUSES.includes(status)) {
+      throw new ValidationError(`Status de hipótese inválido: ${status}`);
+    }
+    const index = this.state.hypotheses.findIndex((h) => h.id === hypothesisId);
+    if (index === -1) {
+      throw new HypothesisNotFoundError();
+    }
+
+    const action = REVIEW_ACTIONS[status];
+    const hypothesis = new Hypothesis(this.state.hypotheses[index]);
+    action.apply(hypothesis);
+
+    // Só a revisão mais recente vale: remove a evidência de revisão anterior desta hipótese.
+    const evidences = this.state.evidences.filter(
+      (e) => !(e.supports === hypothesisId && e.source === REVIEW_SOURCE),
+    );
+    if (action.polarity) {
+      evidences.push(
+        new Evidence({
+          description: `${action.verb} por ${reviewerName}`,
+          supports: hypothesisId,
+          polarity: action.polarity,
+          source: REVIEW_SOURCE,
+        }).toJSON(),
+      );
+    }
+
+    const hypotheses = [...this.state.hypotheses];
+    hypotheses[index] = {
+      ...hypothesis.toJSON(),
+      reviewedBy: action.polarity ? reviewerName : null,
+      reviewedAt: action.polarity ? reviewedAt : null,
+    };
+
+    this.state = { ...this.state, hypotheses, evidences };
+    return hypotheses[index];
+  }
+
+  /** Resumo para o histórico: totais e a hipótese de maior confiança. */
+  toSummary() {
+    const hypotheses = this.state?.hypotheses ?? [];
+    const top = [...hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
+    return {
+      id: this.id,
+      incidentId: this.incidentId,
+      createdAt: this.createdAt,
+      iterations: this.iterations,
+      finishedBy: this.finishedBy,
+      hypothesisCount: hypotheses.length,
+      confirmedCount: hypotheses.filter((h) => h.status === 'CONFIRMED').length,
+      topHypothesis: top ? { description: top.description, confidence: top.confidence } : null,
+    };
   }
 
   toPublic() {

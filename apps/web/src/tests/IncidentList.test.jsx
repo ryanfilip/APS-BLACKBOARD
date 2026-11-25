@@ -14,11 +14,12 @@ const incident = {
   status: 'IN_PROGRESS',
 };
 
-function renderList() {
+function renderList(props = {}) {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <Routes>
-        <Route path="/dashboard" element={<IncidentList />} />
+        <Route path="/dashboard" element={<IncidentList {...props} />} />
+        <Route path="/incidents/:id" element={<p>Página de detalhes</p>} />
         <Route path="/incidents/:id/diagnosis" element={<p>Página do diagnóstico</p>} />
       </Routes>
     </MemoryRouter>,
@@ -41,6 +42,44 @@ describe('IncidentList', () => {
     expect(screen.getByText('Em andamento')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver Detalhes' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Executar Diagnóstico' })).toBeTruthy();
+  });
+
+  it('Ver Detalhes leva para a página do chamado', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [incident] } });
+
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver Detalhes' }));
+
+    expect(await screen.findByText('Página de detalhes')).toBeTruthy();
+  });
+
+  it('sem diagnóstico, não mostra "Ver Diagnóstico"', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, diagnosisCount: 0 }] } });
+
+    renderList();
+
+    expect(await screen.findByRole('button', { name: 'Executar Diagnóstico' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ver Diagnóstico' })).toBeNull();
+  });
+
+  it('com diagnóstico, mostra "Ver Diagnóstico" (que abre o último) e "Diagnosticar Novamente"', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, diagnosisCount: 2 }] } });
+
+    renderList();
+    expect(await screen.findByRole('button', { name: 'Diagnosticar Novamente' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Diagnóstico' }));
+
+    expect(await screen.findByText('Página do diagnóstico')).toBeTruthy();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('para a equipe (staff), mostra "Todos os chamados" e quem relatou', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, ownerName: 'Ana' }] } });
+
+    renderList({ staff: true });
+
+    expect(await screen.findByText('Relatado por: Ana')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Todos os chamados' })).toBeTruthy();
   });
 
   it('mostra mensagem quando não há chamados', async () => {

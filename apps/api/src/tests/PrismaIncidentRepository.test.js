@@ -29,6 +29,17 @@ describe('PrismaIncidentRepository (isolamento por usuário)', () => {
     expect(result).toBeNull();
     expect(client.incident.findFirst).toHaveBeenCalledWith({
       where: { id: 'inc-1', userId: 'user-1' },
+      include: expect.any(Object),
     });
+  });
+
+  it('converte o nome do dono e a contagem de diagnósticos vindos do include', async () => {
+    client.incident.findMany.mockResolvedValue([
+      { id: 'inc-1', title: 't', description: 'd', equipment: 'e', status: 'OPEN', userId: 'user-1', user: { name: 'Ana' }, _count: { diagnoses: 3 } },
+    ]);
+
+    const [incident] = await repository.findAllByUserId('user-1');
+
+    expect(incident.toPublic()).toMatchObject({ ownerName: 'Ana', diagnosisCount: 3 });
   });
 });

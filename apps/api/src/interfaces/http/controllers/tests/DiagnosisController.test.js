@@ -32,7 +32,7 @@ describe('DiagnosisController', () => {
 
       await controller.run(makeReq(), res, next);
 
-      expect(runDiagnosis.execute).toHaveBeenCalledWith({ incidentId: 'inc-1', userId: 'user-1' });
+      expect(runDiagnosis.execute).toHaveBeenCalledWith({ incidentId: 'inc-1', userId: 'user-1', role: 'USER' });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(result);
       expect(next).not.toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe('DiagnosisController', () => {
 
       await controller.get(makeReq(), res, vi.fn());
 
-      expect(getDiagnosis.execute).toHaveBeenCalledWith({ incidentId: 'inc-1', userId: 'user-1' });
+      expect(getDiagnosis.execute).toHaveBeenCalledWith({ incidentId: 'inc-1', userId: 'user-1', role: 'USER' });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(result);
     });

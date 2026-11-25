@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DiagnosisResult from '../pages/DiagnosisResult.jsx';
 import api from '../services/api.js';
 
-vi.mock('../services/api.js', () => ({ default: { get: vi.fn() } }));
+vi.mock('../services/api.js', () => ({ default: { get: vi.fn(), patch: vi.fn() } }));
+
+const authState = vi.hoisted(() => ({ user: { id: 'user-1', name: 'Ana', role: 'USER' } }));
+vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => authState }));
 
 const diagnosis = {
   id: 'diag-1',
@@ -38,6 +41,7 @@ function renderPage(path = '/incidents/inc-1/diagnosis') {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/incidents/:id/diagnosis" element={<DiagnosisResult />} />
+        <Route path="/incidents/:id/diagnoses/:diagnosisId" element={<DiagnosisResult />} />
         <Route path="/dashboard" element={<p>Página da dashboard</p>} />
       </Routes>
     </MemoryRouter>,
@@ -47,6 +51,8 @@ function renderPage(path = '/incidents/inc-1/diagnosis') {
 describe('DiagnosisResult', () => {
   beforeEach(() => {
     api.get.mockReset();
+    api.patch.mockReset();
+    authState.user = { id: 'user-1', name: 'Ana', role: 'USER' };
   });
 
   it('lê o id da URL e chama GET /incidents/:id/diagnosis', async () => {
@@ -167,5 +173,62 @@ describe('DiagnosisResult', () => {
     renderPage();
 
     expect((await screen.findByRole('alert')).textContent).toBe('Não foi possível carregar o diagnóstico.');
+  });
+
+  describe('Revisão das hipóteses (TECH/ADMIN)', () => {
+    it('USER vê o status "Em análise", mas não os botões de revisão', async () => {
+      api.get.mockResolvedValue({ data: { diagnosis } });
+
+      renderPage();
+
+      const [first] = await screen.findAllByRole('article');
+      expect(within(first).getByText('Em análise')).toBeTruthy();
+      expect(within(first).queryByRole('button', { name: /Confirmar/ })).toBeNull();
+    });
+
+    it('TECH confirma: chama PATCH com o id do diagnóstico e da hipótese e atualiza o card', async () => {
+      authState.user = { id: 'tech-1', name: 'Téo', role: 'TECH' };
+      api.get.mockResolvedValue({ data: { diagnosis } });
+      const reviewed = {
+        ...diagnosis,
+        state: {
+          ...diagnosis.state,
+          hypotheses: diagnosis.state.hypotheses.map((h) =>
+            h.id === 'h2' ? { ...h, status: 'CONFIRMED', reviewedBy: 'Téo', reviewedAt: '2026-11-21T10:00:00.000Z' } : h,
+          ),
+        },
+      };
+      api.patch.mockResolvedValue({ data: { diagnosis: reviewed } });
+
+      renderPage();
+      const [ram] = await screen.findAllByRole('article');
+      fireEvent.click(within(ram).getByRole('button', { name: /^Confirmar/ }));
+
+      expect(await within(ram).findByText('Confirmada')).toBeTruthy();
+      expect(api.patch).toHaveBeenCalledWith('/incidents/inc-1/diagnoses/diag-1/hypotheses/h2', { status: 'CONFIRMED' });
+      expect(within(ram).getByText(/Revisada por Téo/)).toBeTruthy();
+      expect(within(ram).getByRole('button', { name: /^Reabrir/ })).toBeTruthy();
+    });
+
+    it('mostra o erro da API quando a revisão falha', async () => {
+      authState.user = { id: 'tech-1', name: 'Téo', role: 'TECH' };
+      api.get.mockResolvedValue({ data: { diagnosis } });
+      api.patch.mockRejectedValue({ response: { data: { error: 'Hipótese não encontrada neste diagnóstico' } } });
+
+      renderPage();
+      const [ram] = await screen.findAllByRole('article');
+      fireEvent.click(within(ram).getByRole('button', { name: /^Descartar/ }));
+
+      expect((await screen.findByRole('alert')).textContent).toBe('Hipótese não encontrada neste diagnóstico');
+    });
+  });
+
+  it('com diagnosisId na URL, busca aquele diagnóstico específico do histórico', async () => {
+    api.get.mockResolvedValue({ data: { diagnosis } });
+
+    renderPage('/incidents/inc-1/diagnoses/diag-1');
+
+    await screen.findAllByRole('article');
+    expect(api.get).toHaveBeenCalledWith('/incidents/inc-1/diagnoses/diag-1');
   });
 });

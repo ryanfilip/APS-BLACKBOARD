@@ -1,20 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import StatusBadge from '../components/StatusBadge.jsx';
 import api from '../services/api.js';
 
-const STATUS_LABELS = {
-  OPEN: 'Aberto',
-  IN_PROGRESS: 'Em andamento',
-  RESOLVED: 'Resolvido',
-};
-
-const STATUS_STYLES = {
-  OPEN: 'bg-amber-100 text-amber-800',
-  IN_PROGRESS: 'bg-sky-100 text-sky-800',
-  RESOLVED: 'bg-emerald-100 text-emerald-800',
-};
-
-export default function IncidentList() {
+/** `staff` (TECH/ADMIN): a lista é a fila de atendimento com os chamados de todos os usuários. */
+export default function IncidentList({ staff = false }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,7 +49,7 @@ export default function IncidentList() {
   return (
     <section aria-labelledby="incident-list-title">
       <h2 id="incident-list-title" className="text-lg font-semibold text-slate-900">
-        Meus chamados
+        {staff ? 'Todos os chamados' : 'Meus chamados'}
       </h2>
 
       {loading && <p className="mt-4 text-slate-500">Carregando chamados...</p>}
@@ -72,7 +62,9 @@ export default function IncidentList() {
 
       {!loading && !error && incidents.length === 0 && (
         <p className="mt-4 rounded border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-slate-600">
-          Você ainda não relatou nenhum problema. Use o botão acima para registrar o primeiro.
+          {staff
+            ? 'Nenhum chamado foi aberto ainda.'
+            : 'Você ainda não relatou nenhum problema. Use o botão acima para registrar o primeiro.'}
         </p>
       )}
 
@@ -92,13 +84,10 @@ export default function IncidentList() {
               <div className="min-w-0">
                 <h3 className="truncate font-medium text-slate-900">{incident.title}</h3>
                 <p className="mt-0.5 text-sm text-slate-600">Equipamento: {incident.equipment}</p>
-                <span
-                  className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    STATUS_STYLES[incident.status] ?? 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {STATUS_LABELS[incident.status] ?? incident.status}
-                </span>
+                {staff && incident.ownerName && (
+                  <p className="mt-0.5 text-sm text-slate-600">Relatado por: {incident.ownerName}</p>
+                )}
+                <StatusBadge status={incident.status} className="mt-2" />
               </div>
 
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -108,11 +97,24 @@ export default function IncidentList() {
                   disabled={runningId !== null}
                   className="rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
                 >
-                  {runningId === incident.id ? 'Executando...' : 'Executar Diagnóstico'}
+                  {runningId === incident.id
+                    ? 'Executando...'
+                    : incident.diagnosisCount > 0
+                      ? 'Diagnosticar Novamente'
+                      : 'Executar Diagnóstico'}
                 </button>
-                {/* Placeholder: a tela de detalhes será implementada em um bloco futuro. */}
+                {incident.diagnosisCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/incidents/${incident.id}/diagnosis`)}
+                    className="rounded border border-teal-700 px-3 py-1.5 text-sm font-medium text-teal-800 hover:bg-teal-50"
+                  >
+                    Ver Diagnóstico
+                  </button>
+                )}
                 <button
                   type="button"
+                  onClick={() => navigate(`/incidents/${incident.id}`)}
                   className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Ver Detalhes

@@ -1,29 +1,24 @@
-import {
-  DiagnosisNotFoundError,
-  IncidentNotFoundError,
-  ValidationError,
-} from '../../../domain/errors/DomainErrors.js';
+import { DiagnosisNotFoundError } from '../../../domain/errors/DomainErrors.js';
+import { findAccessibleIncident } from '../incidents/findAccessibleIncident.js';
 
-/** Busca o diagnóstico mais recente de um incidente que pertença ao usuário. */
+/**
+ * Busca um diagnóstico de um incidente acessível ao usuário (dono ou TECH/ADMIN):
+ * o indicado por `diagnosisId` ou, sem ele, o mais recente.
+ */
 export class GetDiagnosis {
   constructor({ incidentRepository, diagnosisRepository }) {
     this.incidentRepository = incidentRepository;
     this.diagnosisRepository = diagnosisRepository;
   }
 
-  async execute({ incidentId, userId }) {
-    if (typeof userId !== 'string' || userId.length === 0) {
-      throw new ValidationError('O usuário é obrigatório');
-    }
+  async execute({ incidentId, diagnosisId, userId, role }) {
+    const incident = await findAccessibleIncident(this.incidentRepository, { incidentId, userId, role });
 
-    // Propriedade do incidente primeiro: só então o diagnóstico é consultado.
-    const incident = await this.incidentRepository.findById(incidentId, userId);
-    if (!incident || !incident.belongsTo(userId)) {
-      throw new IncidentNotFoundError();
-    }
-
-    const diagnosis = await this.diagnosisRepository.findByIncidentId(incident.id);
-    if (!diagnosis) {
+    const diagnosis = diagnosisId
+      ? await this.diagnosisRepository.findById(diagnosisId)
+      : await this.diagnosisRepository.findByIncidentId(incident.id);
+    // Um diagnóstico de outro incidente responde como não encontrado.
+    if (!diagnosis || diagnosis.incidentId !== incident.id) {
       throw new DiagnosisNotFoundError();
     }
 

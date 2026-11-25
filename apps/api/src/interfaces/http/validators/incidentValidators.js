@@ -14,3 +14,9 @@ export const createIncidentSchema = z.object({
     .trim()
     .min(2, 'O equipamento deve ter no mínimo 2 caracteres'),
 });
+
+export const changeStatusSchema = z.object({
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED'], {
+    errorMap: () => ({ message: 'Status inválido: use OPEN, IN_PROGRESS ou RESOLVED' }),
+  }),
+});

@@ -1,9 +1,4 @@
-import { ZodError } from 'zod';
-import {
-  EmailAlreadyExistsError,
-  InvalidCredentialsError,
-  ValidationError,
-} from '../../../domain/errors/DomainErrors.js';
+import { handleDomainError } from '../middlewares/handleDomainError.js';
 import { loginSchema, registerSchema } from '../validators/authValidators.js';
 
 /**
@@ -23,7 +18,7 @@ export class AuthController {
       const result = await this.registerUser.execute(input);
       return res.status(201).json(result);
     } catch (error) {
-      return this.#handleError(error, res, next);
+      return handleDomainError(error, res, next);
     }
   };
 
@@ -33,7 +28,7 @@ export class AuthController {
       const result = await this.loginUser.execute(input);
       return res.status(200).json(result);
     } catch (error) {
-      return this.#handleError(error, res, next);
+      return handleDomainError(error, res, next);
     }
   };
 
@@ -42,29 +37,7 @@ export class AuthController {
       const result = await this.getCurrentUser.execute({ userId: req.user.id });
       return res.status(200).json(result);
     } catch (error) {
-      return this.#handleError(error, res, next);
+      return handleDomainError(error, res, next);
     }
   };
-
-  #handleError(error, res, next) {
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        error: error.issues[0]?.message ?? 'Dados inválidos',
-        details: error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-        })),
-      });
-    }
-    if (error instanceof ValidationError) {
-      return res.status(400).json({ error: error.message });
-    }
-    if (error instanceof EmailAlreadyExistsError) {
-      return res.status(409).json({ error: error.message });
-    }
-    if (error instanceof InvalidCredentialsError) {
-      return res.status(401).json({ error: error.message });
-    }
-    return next(error);
-  }
 }
