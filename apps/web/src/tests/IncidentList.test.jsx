@@ -14,11 +14,11 @@ const incident = {
   status: 'IN_PROGRESS',
 };
 
-function renderList() {
+function renderList(props = {}) {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <Routes>
-        <Route path="/dashboard" element={<IncidentList />} />
+        <Route path="/dashboard" element={<IncidentList {...props} />} />
         <Route path="/incidents/:id" element={<p>Página de detalhes</p>} />
         <Route path="/incidents/:id/diagnosis" element={<p>Página do diagnóstico</p>} />
       </Routes>
@@ -71,6 +71,15 @@ describe('IncidentList', () => {
 
     expect(await screen.findByText('Página do diagnóstico')).toBeTruthy();
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('para a equipe (staff), mostra "Todos os chamados" e quem relatou', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [{ ...incident, ownerName: 'Ana' }] } });
+
+    renderList({ staff: true });
+
+    expect(await screen.findByText('Relatado por: Ana')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Todos os chamados' })).toBeTruthy();
   });
 
   it('mostra mensagem quando não há chamados', async () => {

@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import AdminUsers from '../pages/AdminUsers.jsx';
 import CreateIncident from '../pages/CreateIncident.jsx';
 import Dashboard from '../pages/Dashboard.jsx';
 import DiagnosisResult from '../pages/DiagnosisResult.jsx';
@@ -18,6 +19,10 @@ export default function AppRoutes() {
         <Route path="/incidents/new" element={<CreateIncident />} />
         <Route path="/incidents/:id" element={<IncidentDetails />} />
         <Route path="/incidents/:id/diagnosis" element={<DiagnosisResult />} />
+      </Route>
+
+      <Route element={<ProtectedRoute roles={['ADMIN']} />}>
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

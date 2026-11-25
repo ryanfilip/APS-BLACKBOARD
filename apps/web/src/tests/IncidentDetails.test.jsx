@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import IncidentDetails from '../pages/IncidentDetails.jsx';
 import api from '../services/api.js';
 
-vi.mock('../services/api.js', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('../services/api.js', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
+
+const authState = vi.hoisted(() => ({ user: { id: 'user-1', name: 'Ana', role: 'USER' } }));
+vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => authState }));
 
 const incident = {
   id: 'inc-1',
@@ -32,6 +35,8 @@ describe('IncidentDetails', () => {
   beforeEach(() => {
     api.get.mockReset();
     api.post.mockReset();
+    api.patch.mockReset();
+    authState.user = { id: 'user-1', name: 'Ana', role: 'USER' };
   });
 
   it('busca GET /incidents/:id e mostra os dados do chamado', async () => {
@@ -72,5 +77,40 @@ describe('IncidentDetails', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Voltar para a Dashboard' }));
 
     expect(await screen.findByText('Página da dashboard')).toBeTruthy();
+  });
+
+  describe('Atendimento (TECH/ADMIN)', () => {
+    it('USER não vê as ações de status', async () => {
+      api.get.mockResolvedValue({ data: { incident } });
+
+      renderPage();
+      await screen.findByRole('heading', { name: 'Computador não liga' });
+
+      expect(screen.queryByRole('button', { name: 'Assumir chamado' })).toBeNull();
+    });
+
+    it('TECH assume o chamado: PATCH /status e o badge muda para "Em andamento"', async () => {
+      authState.user = { id: 'tech-1', name: 'Téo', role: 'TECH' };
+      api.get.mockResolvedValue({ data: { incident } });
+      api.patch.mockResolvedValue({ data: { incident: { ...incident, status: 'IN_PROGRESS' } } });
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir chamado' }));
+
+      expect(await screen.findByRole('button', { name: 'Marcar como resolvido' })).toBeTruthy();
+      expect(api.patch).toHaveBeenCalledWith('/incidents/inc-1/status', { status: 'IN_PROGRESS' });
+      expect(screen.getByRole('button', { name: 'Devolver para a fila' })).toBeTruthy();
+    });
+
+    it('mostra o erro da API quando a transição é recusada', async () => {
+      authState.user = { id: 'adm-1', name: 'Adm', role: 'ADMIN' };
+      api.get.mockResolvedValue({ data: { incident } });
+      api.patch.mockRejectedValue({ response: { data: { error: 'Mudança de status não permitida' } } });
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Assumir chamado' }));
+
+      expect((await screen.findByRole('alert')).textContent).toBe('Mudança de status não permitida');
+    });
   });
 });

@@ -34,3 +34,27 @@ export class DiagnosisNotFoundError extends DomainError {
     super(message);
   }
 }
+
+export class UserNotFoundError extends DomainError {
+  constructor(message = 'Usuário não encontrado') {
+    super(message);
+  }
+}
+
+export class ForbiddenError extends DomainError {
+  constructor(message = 'Acesso negado: permissão insuficiente') {
+    super(message);
+  }
+}
+
+export class InvalidStatusTransitionError extends DomainError {
+  constructor(message = 'Mudança de status não permitida') {
+    super(message);
+  }
+}
+
+export class HypothesisNotFoundError extends DomainError {
+  constructor(message = 'Hipótese não encontrada neste diagnóstico') {
+    super(message);
+  }
+}

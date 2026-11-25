@@ -1,6 +1,20 @@
-import { ValidationError } from '../errors/DomainErrors.js';
+import { InvalidStatusTransitionError, ValidationError } from '../errors/DomainErrors.js';
+import { isStaff } from './User.js';
 
 export const INCIDENT_STATUSES = Object.freeze(['OPEN', 'IN_PROGRESS', 'RESOLVED']);
+
+/**
+ * Máquina de estados do chamado: para cada status, os status para os quais ele pode ir.
+ *   OPEN -> IN_PROGRESS            (técnico assume o chamado)
+ *   IN_PROGRESS -> RESOLVED        (problema resolvido)
+ *   IN_PROGRESS -> OPEN            (técnico devolve o chamado para a fila)
+ *   RESOLVED -> IN_PROGRESS        (chamado reaberto)
+ */
+export const STATUS_TRANSITIONS = Object.freeze({
+  OPEN: Object.freeze(['IN_PROGRESS']),
+  IN_PROGRESS: Object.freeze(['OPEN', 'RESOLVED']),
+  RESOLVED: Object.freeze(['IN_PROGRESS']),
+});
 
 export class Incident {
   constructor({
@@ -49,6 +63,27 @@ export class Incident {
       status: 'OPEN',
       userId,
     });
+  }
+
+  /** O dono vê o próprio chamado; a equipe (TECH/ADMIN) vê todos. */
+  canBeAccessedBy({ userId, role } = {}) {
+    return isStaff(role) || this.belongsTo(userId);
+  }
+
+  canTransitionTo(status) {
+    return (STATUS_TRANSITIONS[this.status] ?? []).includes(status);
+  }
+
+  changeStatus(status) {
+    if (!INCIDENT_STATUSES.includes(status)) {
+      throw new ValidationError(`Status inválido: ${status}`);
+    }
+    if (!this.canTransitionTo(status)) {
+      throw new InvalidStatusTransitionError(
+        `Não é possível mudar o status de ${this.status} para ${status}`,
+      );
+    }
+    this.status = status;
   }
 
   belongsTo(userId) {

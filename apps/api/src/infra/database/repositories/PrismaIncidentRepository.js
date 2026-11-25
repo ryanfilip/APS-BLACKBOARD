@@ -69,4 +69,27 @@ export class PrismaIncidentRepository extends IncidentRepository {
     const record = await this.client.incident.findFirst({ where: { id, userId }, include: LIST_INCLUDE });
     return toEntity(record);
   }
+
+  async findAll() {
+    const records = await this.client.incident.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: LIST_INCLUDE,
+    });
+    return records.map(toEntity);
+  }
+
+  async findByIdUnscoped(id) {
+    if (typeof id !== 'string' || id.length === 0) return null;
+    const record = await this.client.incident.findUnique({ where: { id }, include: LIST_INCLUDE });
+    return toEntity(record);
+  }
+
+  async updateStatus(id, status) {
+    const record = await this.client.incident.update({
+      where: { id },
+      data: { status },
+      include: LIST_INCLUDE,
+    });
+    return toEntity(record);
+  }
 }

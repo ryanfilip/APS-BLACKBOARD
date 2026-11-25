@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge.jsx';
 import api from '../services/api.js';
 
-export default function IncidentList() {
+/** `staff` (TECH/ADMIN): a lista é a fila de atendimento com os chamados de todos os usuários. */
+export default function IncidentList({ staff = false }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -48,7 +49,7 @@ export default function IncidentList() {
   return (
     <section aria-labelledby="incident-list-title">
       <h2 id="incident-list-title" className="text-lg font-semibold text-slate-900">
-        Meus chamados
+        {staff ? 'Todos os chamados' : 'Meus chamados'}
       </h2>
 
       {loading && <p className="mt-4 text-slate-500">Carregando chamados...</p>}
@@ -61,7 +62,9 @@ export default function IncidentList() {
 
       {!loading && !error && incidents.length === 0 && (
         <p className="mt-4 rounded border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-slate-600">
-          Você ainda não relatou nenhum problema. Use o botão acima para registrar o primeiro.
+          {staff
+            ? 'Nenhum chamado foi aberto ainda.'
+            : 'Você ainda não relatou nenhum problema. Use o botão acima para registrar o primeiro.'}
         </p>
       )}
 
@@ -81,6 +84,9 @@ export default function IncidentList() {
               <div className="min-w-0">
                 <h3 className="truncate font-medium text-slate-900">{incident.title}</h3>
                 <p className="mt-0.5 text-sm text-slate-600">Equipamento: {incident.equipment}</p>
+                {staff && incident.ownerName && (
+                  <p className="mt-0.5 text-sm text-slate-600">Relatado por: {incident.ownerName}</p>
+                )}
                 <StatusBadge status={incident.status} className="mt-2" />
               </div>
 

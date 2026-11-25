@@ -17,4 +17,14 @@ export class UserRepository {
   async create(user) {
     throw new Error('Not implemented');
   }
+
+  async findAll() {
+    throw new Error('Not implemented');
+  }
+
+  /** Salva o novo papel e devolve o usuário atualizado. */
+  // eslint-disable-next-line no-unused-vars
+  async updateRole(id, role) {
+    throw new Error('Not implemented');
+  }
 }

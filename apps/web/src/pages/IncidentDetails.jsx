@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import StatusBadge from '../components/StatusBadge.jsx';
+import StatusBadge, { STATUS_LABELS } from '../components/StatusBadge.jsx';
+import { isStaff, STATUS_ACTIONS } from '../constants/roles.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import api from '../services/api.js';
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
@@ -8,11 +10,15 @@ const formatDate = (value) => (value ? new Date(value).toLocaleString('pt-BR') :
 export default function IncidentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const staff = isStaff(user?.role);
   const [incident, setIncident] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +51,21 @@ export default function IncidentDetails() {
     } catch (err) {
       setActionError(err.response?.data?.error ?? 'Não foi possível executar o diagnóstico. Tente novamente.');
       setRunning(false);
+    }
+  }
+
+  async function handleStatusChange(status) {
+    setActionError('');
+    setMessage('');
+    setBusy(true);
+    try {
+      const { data } = await api.patch(`/incidents/${id}/status`, { status });
+      setIncident((current) => ({ ...current, ...data.incident }));
+      setMessage(`Status alterado para "${STATUS_LABELS[status]}".`);
+    } catch (err) {
+      setActionError(err.response?.data?.error ?? 'Não foi possível alterar o status.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -103,6 +124,36 @@ export default function IncidentDetails() {
                 </div>
               </dl>
             </article>
+
+            {staff && (
+              <section aria-labelledby="attendance-title" className="mt-4 rounded-lg bg-white p-5 shadow-sm">
+                <h2 id="attendance-title" className="font-semibold text-slate-900">
+                  Atendimento
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Status atual: <strong>{STATUS_LABELS[incident.status]}</strong>
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(STATUS_ACTIONS[incident.status] ?? []).map((action) => (
+                    <button
+                      key={action.to}
+                      type="button"
+                      onClick={() => handleStatusChange(action.to)}
+                      disabled={busy}
+                      className="rounded bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {message && (
+              <p role="status" className="mt-4 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {message}
+              </p>
+            )}
 
             {actionError && (
               <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
