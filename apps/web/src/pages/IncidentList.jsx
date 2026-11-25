@@ -1,18 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import StatusBadge from '../components/StatusBadge.jsx';
 import api from '../services/api.js';
-
-const STATUS_LABELS = {
-  OPEN: 'Aberto',
-  IN_PROGRESS: 'Em andamento',
-  RESOLVED: 'Resolvido',
-};
-
-const STATUS_STYLES = {
-  OPEN: 'bg-amber-100 text-amber-800',
-  IN_PROGRESS: 'bg-sky-100 text-sky-800',
-  RESOLVED: 'bg-emerald-100 text-emerald-800',
-};
 
 export default function IncidentList() {
   const [incidents, setIncidents] = useState([]);
@@ -92,13 +81,7 @@ export default function IncidentList() {
               <div className="min-w-0">
                 <h3 className="truncate font-medium text-slate-900">{incident.title}</h3>
                 <p className="mt-0.5 text-sm text-slate-600">Equipamento: {incident.equipment}</p>
-                <span
-                  className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    STATUS_STYLES[incident.status] ?? 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {STATUS_LABELS[incident.status] ?? incident.status}
-                </span>
+                <StatusBadge status={incident.status} className="mt-2" />
               </div>
 
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -110,9 +93,9 @@ export default function IncidentList() {
                 >
                   {runningId === incident.id ? 'Executando...' : 'Executar Diagnóstico'}
                 </button>
-                {/* Placeholder: a tela de detalhes será implementada em um bloco futuro. */}
                 <button
                   type="button"
+                  onClick={() => navigate(`/incidents/${incident.id}`)}
                   className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Ver Detalhes

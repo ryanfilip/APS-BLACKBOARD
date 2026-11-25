@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import CreateIncident from '../pages/CreateIncident.jsx';
 import Dashboard from '../pages/Dashboard.jsx';
 import DiagnosisResult from '../pages/DiagnosisResult.jsx';
+import IncidentDetails from '../pages/IncidentDetails.jsx';
 import Login from '../pages/Login.jsx';
 import Register from '../pages/Register.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
@@ -15,6 +16,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/incidents/new" element={<CreateIncident />} />
+        <Route path="/incidents/:id" element={<IncidentDetails />} />
         <Route path="/incidents/:id/diagnosis" element={<DiagnosisResult />} />
       </Route>
 

@@ -19,6 +19,7 @@ function renderList() {
     <MemoryRouter initialEntries={['/dashboard']}>
       <Routes>
         <Route path="/dashboard" element={<IncidentList />} />
+        <Route path="/incidents/:id" element={<p>Página de detalhes</p>} />
         <Route path="/incidents/:id/diagnosis" element={<p>Página do diagnóstico</p>} />
       </Routes>
     </MemoryRouter>,
@@ -41,6 +42,15 @@ describe('IncidentList', () => {
     expect(screen.getByText('Em andamento')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver Detalhes' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Executar Diagnóstico' })).toBeTruthy();
+  });
+
+  it('Ver Detalhes leva para a página do chamado', async () => {
+    api.get.mockResolvedValue({ data: { incidents: [incident] } });
+
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver Detalhes' }));
+
+    expect(await screen.findByText('Página de detalhes')).toBeTruthy();
   });
 
   it('mostra mensagem quando não há chamados', async () => {
