@@ -3,8 +3,9 @@
 Sistema de diagnóstico de problemas de TI construído sobre o padrão arquitetural **Blackboard (Quadro-Negro)**.
 Projeto acadêmico da disciplina de Arquitetura e Padrões de Software (CEFET/RJ).
 
-> **Estado atual:** Blocos 1 a 7 do plano original concluídos. O usuário se cadastra, relata um problema,
-> executa o diagnóstico e vê as hipóteses ordenadas por confiança, cada uma com suas evidências.
+> **Estado atual:** Blocos 1 a 8 concluídos. O usuário se cadastra, relata um problema, executa o diagnóstico e vê as
+> hipóteses ordenadas por confiança, cada uma com suas evidências. O técnico atende a fila de chamados, muda o status
+> e confirma ou descarta hipóteses; o administrador gerencia os papéis.
 > Veja [Onde estamos](#13-onde-estamos) e [O que falta implementar](#14-o-que-falta-implementar).
 
 Este documento foi escrito para quem está chegando agora no projeto. Se você só quer rodar tudo, vá direto para
@@ -60,12 +61,14 @@ O **TechDiagnose** simula isso:
 
 ### Quem usa
 
-| Papel | Situação hoje |
+| Papel | O que faz |
 |---|---|
-| `USER` | Cadastra-se, relata incidentes, executa e vê diagnósticos **dos próprios incidentes**. É o único papel criado pelo cadastro. |
-| `TECH` e `ADMIN` | Existem no banco e no token JWT, mas **ainda não têm funcionalidades exclusivas** (veja [O que falta](#14-o-que-falta-implementar)). |
+| `USER` | Cadastra-se, relata incidentes, edita ou exclui os próprios enquanto estão **Abertos**, executa diagnósticos e vê o histórico **dos próprios incidentes**. É o único papel criado pelo cadastro. |
+| `TECH` | Equipe de suporte: vê a **fila com os chamados de todos**, muda o status (Aberto → Em andamento → Resolvido) e **confirma ou descarta hipóteses** do diagnóstico (a revisão é gravada no quadro como evidência). |
+| `ADMIN` | Tudo do `TECH`, mais **gerenciar os papéis** dos usuários e excluir qualquer chamado. |
 
-Regra de segurança importante: **um usuário nunca vê nem executa nada sobre incidentes de outro usuário.**
+Regra de segurança importante: **um `USER` nunca vê nem executa nada sobre incidentes de outro usuário** (a resposta é
+404, para não revelar que o incidente existe). `TECH` e `ADMIN` enxergam todos.
 
 ---
 
@@ -303,10 +306,23 @@ Confira a API: abra `http://localhost:3000/api/health` no navegador. Deve respon
 | KS4_Software | `O Excel está fechando sozinho e dá erro ao abrir a planilha` |
 | KS5_Security | `Arquivo bloqueado, acesso negado e um pop-up de vírus` |
 
-### 5.7 Promover um usuário a TECH ou ADMIN
+### 5.7 Usuários de demonstração (seed) e papéis TECH/ADMIN
 
-O cadastro sempre cria `USER`. Para testar outros papéis, abra o `prisma studio` (passo 5.4), tabela `User`, e altere
-o campo `role`. Faça login de novo para o token refletir o papel.
+O cadastro sempre cria `USER`. Para ter um usuário de cada papel e alguns chamados de exemplo, rode (com o banco já
+migrado):
+
+```bash
+npm run prisma:seed
+```
+
+| E-mail | Senha | Papel |
+|---|---|---|
+| `admin@techdiagnose.com` | `123456` | `ADMIN` |
+| `tecnico@techdiagnose.com` | `123456` | `TECH` |
+| `usuario@techdiagnose.com` | `123456` | `USER` |
+
+Pode rodar mais de uma vez: nada é duplicado. Depois, o ADMIN promove outros usuários pela tela **Gerenciar
+Usuários**. O novo papel vale a partir do **próximo login** do usuário promovido (o papel viaja no token).
 
 ### 5.8 Rodar os testes
 
@@ -455,10 +471,26 @@ Base: `http://localhost:3000/api`. Corpo e resposta em JSON. Rotas protegidas ex
 | `POST /auth/login` | não | `{ email, password }` | `200 { user, token }` |
 | `GET /auth/me` | sim | | `200 { user }` |
 | `POST /incidents` | sim | `{ title, description, equipment }` | `201 { incident }` |
-| `GET /incidents` | sim | | `200 { incidents }` (mais recentes primeiro, só do usuário) |
-| `GET /incidents/:id` | sim | | `200 { incident }` |
+| `GET /incidents` | sim | | `200 { incidents }` (mais recentes primeiro; `USER` vê só os seus, `TECH`/`ADMIN` veem todos, com `ownerName` e `diagnosisCount`) |
+| `GET /incidents/:id` | sim | | `200 { incident }` (inclui `permissions: { canEdit, canDelete }` do usuário logado) |
+| `PUT /incidents/:id` | dono | `{ title, description, equipment }` | `200 { incident }` (só com status `OPEN`) |
+| `DELETE /incidents/:id` | dono ou ADMIN | | `204` (apaga também os diagnósticos; o dono só com status `OPEN`) |
+| `PATCH /incidents/:id/status` | TECH/ADMIN | `{ status }` | `200 { incident }` (respeita a máquina de estados abaixo) |
 | `POST /incidents/:id/diagnose` | sim | | `201 { diagnosis }` (executa **e salva**) |
 | `GET /incidents/:id/diagnosis` | sim | | `200 { diagnosis }` (o mais recente) |
+| `GET /incidents/:id/diagnoses` | sim | | `200 { diagnoses }` (histórico resumido, mais recente primeiro) |
+| `GET /incidents/:id/diagnoses/:diagnosisId` | sim | | `200 { diagnosis }` (um diagnóstico específico) |
+| `PATCH /incidents/:id/diagnoses/:diagnosisId/hypotheses/:hypothesisId` | TECH/ADMIN | `{ status }` (`CONFIRMED`, `REJECTED` ou `OPEN`) | `200 { diagnosis }` |
+| `GET /users` | ADMIN | | `200 { users }` |
+| `PATCH /users/:id/role` | ADMIN | `{ role }` | `200 { user }` (o ADMIN não altera o próprio papel) |
+
+**Máquina de estados do chamado** (`domain/entities/Incident.js`, `STATUS_TRANSITIONS`):
+`OPEN → IN_PROGRESS` (técnico assume), `IN_PROGRESS → RESOLVED` (resolvido), `IN_PROGRESS → OPEN` (devolvido à fila),
+`RESOLVED → IN_PROGRESS` (reaberto). Qualquer outra transição responde 409.
+
+**Revisão de hipóteses:** o técnico atua como uma Knowledge Source humana. Confirmar grava no quadro uma evidência
+`SUPPORTS` de origem `Revisão técnica`; descartar grava uma `REFUTES`; reabrir remove a revisão. Só a revisão mais
+recente de cada hipótese fica no quadro, e a hipótese guarda `reviewedBy` e `reviewedAt`.
 
 Regras de validação: `name` mínimo 2; `email` válido; `password` mínimo 6; `title` mínimo 3; `description` mínimo 10;
 `equipment` mínimo 2.
@@ -475,8 +507,9 @@ Sempre `{ "error": "mensagem em português" }`. Erros de validação trazem tamb
 |---|---|
 | 400 | Dados inválidos |
 | 401 | Sem token, token inválido/expirado ou credenciais erradas |
-| 404 | Incidente inexistente **ou de outro usuário** (de propósito, para não revelar que existe); incidente ainda sem diagnóstico |
-| 409 | E-mail já cadastrado |
+| 403 | Papel sem permissão (ex.: `USER` mudando status, `TECH` editando chamado de outro) |
+| 404 | Incidente inexistente **ou de outro usuário** (de propósito, para não revelar que existe); diagnóstico, hipótese ou usuário inexistente |
+| 409 | E-mail já cadastrado; transição de status não permitida; editar/excluir chamado que não está `OPEN` |
 | 500 | Erro inesperado (`{ "error": "Erro interno do servidor" }`; o detalhe vai para o log) |
 
 ### Testando com curl
@@ -607,9 +640,11 @@ O projeto foi construído em blocos, cada um entregando uma fatia completa:
 | 5 | As 5 Knowledge Sources, `Evidence.polarity` e métodos `canExecute`/`execute` | `domain/knowledge-sources` |
 | 6 | Control Component e caso de uso `RunDiagnosis` | `domain/control` |
 | 7 | Persistência do diagnóstico (`Diagnosis`), rotas `diagnose`/`diagnosis` e tela de resultado | `use-cases/diagnosis`, `DiagnosisResult.jsx` |
+| 8 | Itens P1 a P7: detalhes, atalho de diagnóstico, histórico, status (máquina de estados), editar/excluir, papéis TECH/ADMIN, revisão de hipóteses; seed | `use-cases/incidents`, `use-cases/users`, `IncidentDetails.jsx`, `AdminUsers.jsx` |
 
-**Já funciona de ponta a ponta:** cadastro e login; relatar e listar incidentes; executar o diagnóstico; salvar o
-resultado; ver hipóteses ordenadas por confiança com suas evidências.
+**Já funciona de ponta a ponta:** cadastro e login; relatar, listar, ver, editar e excluir incidentes; executar o
+diagnóstico, salvar o resultado e consultar o histórico; ver hipóteses ordenadas por confiança com suas evidências;
+atendimento pelo técnico (status e revisão de hipóteses); gestão de papéis pelo administrador.
 
 **Estado da verificação:** a suíte automatizada passa, mas ela usa banco falso. O fluxo contra PostgreSQL real (as
 migrations e o `prisma generate`) deve ser conferido por quem montar o ambiente, seguindo a [seção 5](#5-primeiros-passos-do-zero-ao-projeto-rodando).
@@ -619,7 +654,7 @@ Se algo falhar, anote o erro e avise o responsável pelo projeto.
 
 ## 14. O que falta implementar
 
-Os 7 blocos do plano original estão concluídos. A lista abaixo reúne **lacunas conhecidas e sugestões de evolução**;
+Os blocos 1 a 8 estão concluídos. A lista abaixo reúne **lacunas conhecidas e sugestões de evolução**;
 combinem as prioridades com o responsável pelo projeto antes de começar, para não haver trabalho duplicado.
 Dificuldade: **F** fácil, **M** média, **D** difícil.
 
@@ -627,13 +662,13 @@ Dificuldade: **F** fácil, **M** média, **D** difícil.
 
 | # | Item | Detalhes e por onde começar | Dif. |
 |---|---|---|---|
-| P1 | Tela de **detalhes do incidente** | O botão "Ver Detalhes" em `IncidentList.jsx` é só um placeholder. O backend já tem `GET /incidents/:id`. Criar a página e a rota. | F |
-| P2 | Atalho **"Ver Diagnóstico"** | Hoje "Executar Diagnóstico" sempre cria um novo. Informar na listagem se já existe diagnóstico e mostrar o atalho. | F |
-| P3 | **Histórico** de diagnósticos | Hoje só o mais recente é lido. Adicionar uma rota de listagem e uma tela. | F/M |
-| P4 | **Atualizar o status** do incidente | `OPEN`/`IN_PROGRESS`/`RESOLVED` existem, mas nada os altera. Criar caso de uso e `PATCH /incidents/:id`. | M |
-| P5 | **Editar e excluir** incidente | Hoje só há criar, listar e ver. Atenção à FK `RESTRICT` com `Diagnosis`. | M |
-| P6 | **Funcionalidades para `TECH` e `ADMIN`** | `requireRole` existe (`middlewares/roleMiddleware.js`) mas nenhuma rota o usa. Ideias: TECH vê todos os incidentes; ADMIN gerencia papéis. | M/D |
-| P7 | **Confirmar ou rejeitar hipóteses** | `Hypothesis.confirm()`/`reject()` existem, mas nada na API ou na tela chama. Exige decidir como atualizar o JSON salvo. | D |
+| P1 | ✅ ~~Tela de **detalhes do incidente**~~ | **Feito.** Página `IncidentDetails.jsx` em `/incidents/:id`. | |
+| P2 | ✅ ~~Atalho **"Ver Diagnóstico"**~~ | **Feito.** A listagem traz `diagnosisCount`; o card mostra "Ver Diagnóstico" e "Diagnosticar Novamente". | |
+| P3 | ✅ ~~**Histórico** de diagnósticos~~ | **Feito.** `GET /incidents/:id/diagnoses` e `/diagnoses/:diagnosisId`; histórico na página de detalhes. | |
+| P4 | ✅ ~~**Atualizar o status** do incidente~~ | **Feito.** `PATCH /incidents/:id/status` com máquina de estados em `Incident.changeStatus`. | |
+| P5 | ✅ ~~**Editar e excluir** incidente~~ | **Feito.** `PUT` e `DELETE /incidents/:id` (só com status `OPEN`; ADMIN exclui sempre). Diagnósticos apagados na mesma transação. | |
+| P6 | ✅ ~~**Funcionalidades para `TECH` e `ADMIN`**~~ | **Feito.** Fila de todos os chamados para TECH/ADMIN, tela **Gerenciar Usuários** e seed. | |
+| P7 | ✅ ~~**Confirmar ou rejeitar hipóteses**~~ | **Feito.** `ReviewHypothesis`: a revisão vira evidência no quadro (`Revisão técnica`). | |
 | P8 | Paginação, busca e filtro na lista de chamados | `ListIncidents` e `IncidentList.jsx`. | M |
 | P9 | Recuperação de senha e refresh token | Opcional. | D |
 
@@ -654,11 +689,11 @@ Dificuldade: **F** fácil, **M** média, **D** difícil.
 |---|---|---|---|
 | Q1 | **ESLint e Prettier** | Há comentários `eslint-disable` no código, mas nenhuma configuração instalada. | F |
 | Q2 | **docker-compose** para o PostgreSQL (e talvez API e web) | Hoje o banco sobe com `docker run` manual. | F |
-| Q3 | **Seed** de dados de exemplo | Por exemplo, usuários `TECH` e `ADMIN` e alguns incidentes. | F |
+| Q3 | ✅ ~~**Seed** de dados de exemplo~~ | **Feito.** `npm run prisma:seed` (veja a seção 5.7). | |
 | Q4 | **CI** (GitHub Actions) | Rodar `npm ci`, `npm test` e `npm run build -w apps/web` a cada push. | F/M |
 | Q5 | Testes de integração com **banco real** | Hoje o Prisma é falso nos testes HTTP. | M |
 | Q6 | Testes de frontend que faltam | `Dashboard`, `Register`, `AuthContext`, `ProtectedRoute`. | F/M |
-| Q7 | Extrair o `#handleError` repetido | Os 3 controllers repetem o mapeamento erro de domínio para status HTTP. | F |
+| Q7 | ✅ ~~Extrair o `#handleError` repetido~~ | **Feito.** Mapeamento único em `middlewares/handleDomainError.js`. | |
 | Q8 | Documentação da API (OpenAPI/Swagger) | A tabela da [seção 9](#9-api-http) é manual. | M |
 | Q9 | Endurecer a segurança | Rate limit no login, `helmet`, token em cookie httpOnly (hoje em `localStorage`). | M |
 | Q10 | Build e deploy de produção | `npm run build -w apps/web` gera `dist/`; falta definir como servir e implantar. | M |
