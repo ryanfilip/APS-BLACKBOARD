@@ -7,12 +7,18 @@ import api from '../services/api.js';
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
 
+const FINISHED_BY_LABELS = {
+  NO_MORE_ACTIONS: 'Análise concluída',
+  MAX_ITERATIONS_REACHED: 'Limite de iterações atingido',
+};
+
 export default function IncidentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const staff = isStaff(user?.role);
   const [incident, setIncident] = useState(null);
+  const [diagnoses, setDiagnoses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
@@ -24,6 +30,14 @@ export default function IncidentDetails() {
     let cancelled = false;
     setLoading(true);
     setError('');
+
+    // O histórico é complementar: se falhar, a página continua mostrando o chamado.
+    api
+      .get(`/incidents/${id}/diagnoses`)
+      .then(({ data }) => {
+        if (!cancelled) setDiagnoses(data.diagnoses ?? []);
+      })
+      .catch(() => {});
 
     api
       .get(`/incidents/${id}`)
@@ -124,6 +138,46 @@ export default function IncidentDetails() {
                 </div>
               </dl>
             </article>
+
+            <section aria-labelledby="history-title" className="mt-4 rounded-lg bg-white p-5 shadow-sm">
+              <h2 id="history-title" className="font-semibold text-slate-900">
+                Histórico de diagnósticos
+              </h2>
+              {diagnoses.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-600">Este chamado ainda não foi diagnosticado.</p>
+              ) : (
+                <ol className="mt-3 divide-y divide-slate-100">
+                  {diagnoses.map((diagnosis, index) => (
+                    <li key={diagnosis.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 text-sm">
+                        <p className="font-medium text-slate-900">
+                          {formatDate(diagnosis.createdAt)}
+                          {index === 0 && <span className="ml-2 text-xs font-normal text-teal-700">(mais recente)</span>}
+                        </p>
+                        <p className="text-slate-600">
+                          {diagnosis.hypothesisCount} hipótese(s) · {diagnosis.iterations} iteração(ões) ·{' '}
+                          {FINISHED_BY_LABELS[diagnosis.finishedBy] ?? diagnosis.finishedBy}
+                          {diagnosis.confirmedCount > 0 && ` · ${diagnosis.confirmedCount} confirmada(s)`}
+                        </p>
+                        {diagnosis.topHypothesis && (
+                          <p className="text-slate-600">
+                            Principal: {diagnosis.topHypothesis.description} ({diagnosis.topHypothesis.confidence}%)
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Abrir diagnóstico de ${formatDate(diagnosis.createdAt)}`}
+                        onClick={() => navigate(`/incidents/${id}/diagnoses/${diagnosis.id}`)}
+                        className="rounded border border-teal-700 px-3 py-1.5 text-sm font-medium text-teal-800 hover:bg-teal-50"
+                      >
+                        Abrir
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
 
             {staff && (
               <section aria-labelledby="attendance-title" className="mt-4 rounded-lg bg-white p-5 shadow-sm">

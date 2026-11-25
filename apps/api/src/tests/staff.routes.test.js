@@ -33,6 +33,8 @@ const { db, fakePrisma } = vi.hoisted(() => {
       findFirst: async ({ where }) =>
         db.diagnoses.filter((r) => r.incidentId === where.incidentId).sort((a, b) => b.createdAt - a.createdAt)[0] ?? null,
       findUnique: async ({ where }) => db.diagnoses.find((r) => r.id === where.id) ?? null,
+      findMany: async ({ where }) =>
+        db.diagnoses.filter((r) => r.incidentId === where.incidentId).sort((a, b) => b.createdAt - a.createdAt),
       update: async ({ where, data }) => {
         const record = db.diagnoses.find((r) => r.id === where.id);
         record.state = JSON.parse(JSON.stringify(data.state));
@@ -266,5 +268,49 @@ describe('PATCH /api/incidents/:id/diagnoses/:diagnosisId/hypotheses/:hypothesis
     expect(noHypothesis.body.error).toBe('Hipótese não encontrada neste diagnóstico');
     expect(noDiagnosis.status).toBe(404);
     expect(badStatus.status).toBe(400);
+  });
+});
+
+describe('Histórico de diagnósticos', () => {
+  it('GET /diagnoses lista os resumos do mais recente ao mais antigo', async () => {
+    const id = await createIncident('user-a');
+    await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+    await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+
+    const response = await request(app).get(`/api/incidents/${id}/diagnoses`).set(auth('user-a'));
+
+    expect(response.status).toBe(200);
+    expect(response.body.diagnoses.map((d) => d.id)).toEqual(['diag-2', 'diag-1']);
+    expect(response.body.diagnoses[0]).toMatchObject({
+      iterations: 2,
+      finishedBy: 'NO_MORE_ACTIONS',
+      hypothesisCount: 4,
+      confirmedCount: 0,
+      topHypothesis: { confidence: 50 },
+    });
+    expect(response.body.diagnoses[0]).not.toHaveProperty('state');
+  });
+
+  it('GET /diagnoses/:diagnosisId abre um diagnóstico antigo específico', async () => {
+    const id = await createIncident('user-a');
+    await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+    await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+
+    const response = await request(app).get(`/api/incidents/${id}/diagnoses/diag-1`).set(auth('user-a'));
+
+    expect(response.status).toBe(200);
+    expect(response.body.diagnosis.id).toBe('diag-1');
+  });
+
+  it('não abre diagnóstico de outro incidente nem de outro usuário (404)', async () => {
+    const mine = await createIncident('user-a');
+    const other = await createIncident('user-b');
+    await request(app).post(`/api/incidents/${other}/diagnose`).set(auth('user-b'));
+
+    const crossIncident = await request(app).get(`/api/incidents/${mine}/diagnoses/diag-1`).set(auth('user-a'));
+    const crossUser = await request(app).get(`/api/incidents/${other}/diagnoses`).set(auth('user-a'));
+
+    expect(crossIncident.status).toBe(404);
+    expect(crossUser.status).toBe(404);
   });
 });

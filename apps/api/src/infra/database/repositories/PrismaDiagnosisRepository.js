@@ -50,6 +50,15 @@ export class PrismaDiagnosisRepository extends DiagnosisRepository {
     return toEntity(record);
   }
 
+  async findAllByIncidentId(incidentId) {
+    assertIncidentId(incidentId);
+    const records = await this.client.diagnosis.findMany({
+      where: { incidentId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return records.map(toEntity);
+  }
+
   async findById(id) {
     if (typeof id !== 'string' || id.length === 0) return null;
     return toEntity(await this.client.diagnosis.findUnique({ where: { id } }));

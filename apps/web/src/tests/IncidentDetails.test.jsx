@@ -25,6 +25,7 @@ function renderPage() {
       <Routes>
         <Route path="/incidents/:id" element={<IncidentDetails />} />
         <Route path="/incidents/:id/diagnosis" element={<p>Página do diagnóstico</p>} />
+        <Route path="/incidents/:id/diagnoses/:diagnosisId" element={<p>Diagnóstico antigo</p>} />
         <Route path="/dashboard" element={<p>Página da dashboard</p>} />
       </Routes>
     </MemoryRouter>,
@@ -46,6 +47,7 @@ describe('IncidentDetails', () => {
 
     expect(await screen.findByRole('heading', { name: 'Computador não liga' })).toBeTruthy();
     expect(api.get).toHaveBeenCalledWith('/incidents/inc-1');
+    expect(api.get).toHaveBeenCalledWith('/incidents/inc-1/diagnoses');
     expect(screen.getByText('Desktop Positivo')).toBeTruthy();
     expect(screen.getByText('Nada acontece ao apertar o botão.')).toBeTruthy();
     expect(screen.getByText('Aberto')).toBeTruthy();
@@ -111,6 +113,40 @@ describe('IncidentDetails', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Assumir chamado' }));
 
       expect((await screen.findByRole('alert')).textContent).toBe('Mudança de status não permitida');
+    });
+  });
+
+  describe('Histórico de diagnósticos', () => {
+    const history = [
+      { id: 'diag-2', createdAt: '2026-11-21T10:00:00.000Z', iterations: 2, finishedBy: 'NO_MORE_ACTIONS', hypothesisCount: 4, confirmedCount: 1, topHypothesis: { description: 'Perda de pacotes na rede', confidence: 60 } },
+      { id: 'diag-1', createdAt: '2026-11-20T10:00:00.000Z', iterations: 1, finishedBy: 'NO_MORE_ACTIONS', hypothesisCount: 2, confirmedCount: 0, topHypothesis: null },
+    ];
+    const mockGet = (diagnoses) =>
+      api.get.mockImplementation((url) =>
+        Promise.resolve({ data: url.endsWith('/diagnoses') ? { diagnoses } : { incident } }),
+      );
+
+    it('lista os diagnósticos anteriores e abre um específico', async () => {
+      mockGet(history);
+
+      renderPage();
+
+      expect(await screen.findByText('Principal: Perda de pacotes na rede (60%)')).toBeTruthy();
+      expect(screen.getByText('(mais recente)')).toBeTruthy();
+      expect(screen.getByText(/1 confirmada/)).toBeTruthy();
+      const buttons = screen.getAllByRole('button', { name: /^Abrir diagnóstico/ });
+      expect(buttons).toHaveLength(2);
+      fireEvent.click(buttons[1]);
+
+      expect(await screen.findByText('Diagnóstico antigo')).toBeTruthy();
+    });
+
+    it('sem diagnósticos, mostra o aviso', async () => {
+      mockGet([]);
+
+      renderPage();
+
+      expect(await screen.findByText('Este chamado ainda não foi diagnosticado.')).toBeTruthy();
     });
   });
 });

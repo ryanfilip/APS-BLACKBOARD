@@ -41,6 +41,7 @@ function renderPage(path = '/incidents/inc-1/diagnosis') {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/incidents/:id/diagnosis" element={<DiagnosisResult />} />
+        <Route path="/incidents/:id/diagnoses/:diagnosisId" element={<DiagnosisResult />} />
         <Route path="/dashboard" element={<p>Página da dashboard</p>} />
       </Routes>
     </MemoryRouter>,
@@ -220,5 +221,14 @@ describe('DiagnosisResult', () => {
 
       expect((await screen.findByRole('alert')).textContent).toBe('Hipótese não encontrada neste diagnóstico');
     });
+  });
+
+  it('com diagnosisId na URL, busca aquele diagnóstico específico do histórico', async () => {
+    api.get.mockResolvedValue({ data: { diagnosis } });
+
+    renderPage('/incidents/inc-1/diagnoses/diag-1');
+
+    await screen.findAllByRole('article');
+    expect(api.get).toHaveBeenCalledWith('/incidents/inc-1/diagnoses/diag-1');
   });
 });

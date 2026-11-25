@@ -6,9 +6,10 @@ import { reviewHypothesisSchema } from '../validators/diagnosisValidators.js';
  * O usuário (id e papel) vem sempre do token (req.user); o id do incidente vem da URL.
  */
 export class DiagnosisController {
-  constructor({ runDiagnosis, getDiagnosis, reviewHypothesis }) {
+  constructor({ runDiagnosis, getDiagnosis, listDiagnoses, reviewHypothesis }) {
     this.runDiagnosis = runDiagnosis;
     this.getDiagnosis = getDiagnosis;
+    this.listDiagnoses = listDiagnoses;
     this.reviewHypothesis = reviewHypothesis;
   }
 
@@ -28,6 +29,20 @@ export class DiagnosisController {
   get = async (req, res, next) => {
     try {
       const result = await this.getDiagnosis.execute({
+        incidentId: req.params.id,
+        diagnosisId: req.params.diagnosisId,
+        userId: req.user.id,
+        role: req.user.role,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleDomainError(error, res, next);
+    }
+  };
+
+  list = async (req, res, next) => {
+    try {
+      const result = await this.listDiagnoses.execute({
         incidentId: req.params.id,
         userId: req.user.id,
         role: req.user.role,

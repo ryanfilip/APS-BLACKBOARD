@@ -93,6 +93,22 @@ export class Diagnosis {
     return hypotheses[index];
   }
 
+  /** Resumo para o histórico: totais e a hipótese de maior confiança. */
+  toSummary() {
+    const hypotheses = this.state?.hypotheses ?? [];
+    const top = [...hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
+    return {
+      id: this.id,
+      incidentId: this.incidentId,
+      createdAt: this.createdAt,
+      iterations: this.iterations,
+      finishedBy: this.finishedBy,
+      hypothesisCount: hypotheses.length,
+      confirmedCount: hypotheses.filter((h) => h.status === 'CONFIRMED').length,
+      topHypothesis: top ? { description: top.description, confidence: top.confidence } : null,
+    };
+  }
+
   toPublic() {
     return {
       id: this.id,

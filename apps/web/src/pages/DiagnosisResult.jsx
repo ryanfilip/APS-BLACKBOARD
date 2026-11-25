@@ -58,7 +58,8 @@ function ConfidenceBar({ value, label }) {
 }
 
 export default function DiagnosisResult() {
-  const { id } = useParams();
+  // Sem diagnosisId, mostra o diagnóstico mais recente do incidente.
+  const { id, diagnosisId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const staff = isStaff(user?.role);
@@ -73,8 +74,9 @@ export default function DiagnosisResult() {
     setLoading(true);
     setError('');
 
+    const url = diagnosisId ? `/incidents/${id}/diagnoses/${diagnosisId}` : `/incidents/${id}/diagnosis`;
     api
-      .get(`/incidents/${id}/diagnosis`)
+      .get(url)
       .then(({ data }) => {
         if (!cancelled) setDiagnosis(data.diagnosis);
       })
@@ -90,7 +92,7 @@ export default function DiagnosisResult() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, diagnosisId]);
 
   // Hipóteses da maior para a menor confiança.
   const hypotheses = useMemo(
@@ -128,7 +130,16 @@ export default function DiagnosisResult() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="mb-6">{backButton}</div>
+        <div className="mb-6 flex flex-wrap gap-3">
+          {backButton}
+          <button
+            type="button"
+            onClick={() => navigate(`/incidents/${id}`)}
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Ver chamado e histórico
+          </button>
+        </div>
 
         {loading && <p className="text-slate-500">Carregando diagnóstico...</p>}
 

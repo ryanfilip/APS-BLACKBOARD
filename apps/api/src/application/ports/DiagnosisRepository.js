@@ -16,6 +16,12 @@ export class DiagnosisRepository {
     throw new Error('Not implemented');
   }
 
+  /** Todos os diagnósticos do incidente, do mais recente para o mais antigo. */
+  // eslint-disable-next-line no-unused-vars
+  async findAllByIncidentId(incidentId) {
+    throw new Error('Not implemented');
+  }
+
   /** Diagnóstico pelo id, ou null. */
   // eslint-disable-next-line no-unused-vars
   async findById(id) {
