@@ -15,4 +15,16 @@ export class DiagnosisRepository {
   async findByIncidentId(incidentId) {
     throw new Error('Not implemented');
   }
+
+  /** Diagnóstico pelo id, ou null. */
+  // eslint-disable-next-line no-unused-vars
+  async findById(id) {
+    throw new Error('Not implemented');
+  }
+
+  /** Salva um novo `state` (ex.: após a revisão de uma hipótese) e devolve o diagnóstico atualizado. */
+  // eslint-disable-next-line no-unused-vars
+  async updateState(id, state) {
+    throw new Error('Not implemented');
+  }
 }

@@ -49,4 +49,13 @@ export class PrismaDiagnosisRepository extends DiagnosisRepository {
     });
     return toEntity(record);
   }
+
+  async findById(id) {
+    if (typeof id !== 'string' || id.length === 0) return null;
+    return toEntity(await this.client.diagnosis.findUnique({ where: { id } }));
+  }
+
+  async updateState(id, state) {
+    return toEntity(await this.client.diagnosis.update({ where: { id }, data: { state } }));
+  }
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isStaff } from '../constants/roles.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import api from '../services/api.js';
 
 const FINISHED_BY_LABELS = {
@@ -10,6 +12,22 @@ const FINISHED_BY_LABELS = {
 const POLARITY_LABELS = {
   SUPPORTS: { text: 'Apoia', style: 'bg-emerald-100 text-emerald-800' },
   REFUTES: { text: 'Refuta', style: 'bg-rose-100 text-rose-800' },
+};
+
+const HYPOTHESIS_STATUS = {
+  OPEN: { text: 'Em análise', style: 'bg-slate-100 text-slate-700' },
+  CONFIRMED: { text: 'Confirmada', style: 'bg-emerald-100 text-emerald-800' },
+  REJECTED: { text: 'Descartada', style: 'bg-rose-100 text-rose-800' },
+};
+
+/** Ações do técnico sobre uma hipótese, conforme o status atual. */
+const REVIEW_ACTIONS = {
+  OPEN: [
+    { to: 'CONFIRMED', label: 'Confirmar', style: 'bg-emerald-700 text-white hover:bg-emerald-800' },
+    { to: 'REJECTED', label: 'Descartar', style: 'bg-rose-700 text-white hover:bg-rose-800' },
+  ],
+  CONFIRMED: [{ to: 'OPEN', label: 'Reabrir', style: 'border border-slate-300 text-slate-700 hover:bg-slate-50' }],
+  REJECTED: [{ to: 'OPEN', label: 'Reabrir', style: 'border border-slate-300 text-slate-700 hover:bg-slate-50' }],
 };
 
 function StatTile({ label, value }) {
@@ -42,7 +60,11 @@ function ConfidenceBar({ value, label }) {
 export default function DiagnosisResult() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const staff = isStaff(user?.role);
   const [diagnosis, setDiagnosis] = useState(null);
+  const [reviewingId, setReviewingId] = useState(null);
+  const [reviewError, setReviewError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -76,6 +98,22 @@ export default function DiagnosisResult() {
     [diagnosis],
   );
   const evidences = diagnosis?.state?.evidences ?? [];
+
+  async function handleReview(hypothesisId, status) {
+    setReviewError('');
+    setReviewingId(hypothesisId);
+    try {
+      const { data } = await api.patch(
+        `/incidents/${id}/diagnoses/${diagnosis.id}/hypotheses/${hypothesisId}`,
+        { status },
+      );
+      setDiagnosis(data.diagnosis);
+    } catch (err) {
+      setReviewError(err.response?.data?.error ?? 'Não foi possível revisar a hipótese.');
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   const backButton = (
     <button
@@ -122,6 +160,17 @@ export default function DiagnosisResult() {
               <h2 id="hypotheses-title" className="text-lg font-semibold text-slate-900">
                 Hipóteses
               </h2>
+              {staff && (
+                <p className="mt-1 text-sm text-slate-600">
+                  Como técnico, confirme ou descarte cada hipótese. A revisão é registrada no quadro como evidência.
+                </p>
+              )}
+
+              {reviewError && (
+                <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {reviewError}
+                </p>
+              )}
 
               {hypotheses.length === 0 && (
                 <p className="mt-4 rounded border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-slate-600">
@@ -132,16 +181,25 @@ export default function DiagnosisResult() {
               <div className="mt-4 space-y-4">
                 {hypotheses.map((hypothesis, index) => {
                   const related = evidences.filter((evidence) => evidence.supports === hypothesis.id);
+                  const status = HYPOTHESIS_STATUS[hypothesis.status] ?? HYPOTHESIS_STATUS.OPEN;
                   return (
-                    <article key={hypothesis.id} className="rounded-lg bg-white p-5 shadow-sm">
+                    <article
+                      key={hypothesis.id}
+                      className={`rounded-lg bg-white p-5 shadow-sm ${hypothesis.status === 'REJECTED' ? 'opacity-70' : ''}`}
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-slate-500">#{index + 1}</p>
                           <h3 className="font-semibold text-slate-900">{hypothesis.description}</h3>
                         </div>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-                          {hypothesis.source}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                            {hypothesis.source}
+                          </span>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${status.style}`}>
+                            {status.text}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="mt-4">
@@ -172,6 +230,30 @@ export default function DiagnosisResult() {
                           </ul>
                         )}
                       </div>
+
+                      {hypothesis.reviewedBy && (
+                        <p className="mt-3 text-xs text-slate-500">
+                          Revisada por {hypothesis.reviewedBy}
+                          {hypothesis.reviewedAt && ` em ${new Date(hypothesis.reviewedAt).toLocaleString('pt-BR')}`}
+                        </p>
+                      )}
+
+                      {staff && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {(REVIEW_ACTIONS[hypothesis.status] ?? REVIEW_ACTIONS.OPEN).map((action) => (
+                            <button
+                              key={action.to}
+                              type="button"
+                              aria-label={`${action.label}: ${hypothesis.description}`}
+                              onClick={() => handleReview(hypothesis.id, action.to)}
+                              disabled={reviewingId !== null}
+                              className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${action.style}`}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </article>
                   );
                 })}

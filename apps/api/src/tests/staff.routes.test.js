@@ -3,7 +3,7 @@ import request from 'supertest';
 
 // Prisma falso em memória para as rotas de TECH/ADMIN (atendimento e administração).
 const { db, fakePrisma } = vi.hoisted(() => {
-  const db = { incidents: [], users: [], clock: 0 };
+  const db = { incidents: [], users: [], diagnoses: [], clock: 0 };
   const tick = () => new Date(1_800_000_000_000 + (db.clock += 1000));
   const withOwner = (r) => r && { ...r, user: { name: db.users.find((u) => u.id === r.userId)?.name } };
   const fakePrisma = {
@@ -22,6 +22,21 @@ const { db, fakePrisma } = vi.hoisted(() => {
         const record = db.incidents.find((r) => r.id === where.id);
         Object.assign(record, data, { updatedAt: tick() });
         return withOwner(record);
+      },
+    },
+    diagnosis: {
+      create: async ({ data }) => {
+        const record = { id: `diag-${db.diagnoses.length + 1}`, createdAt: tick(), ...data, state: JSON.parse(JSON.stringify(data.state)) };
+        db.diagnoses.push(record);
+        return record;
+      },
+      findFirst: async ({ where }) =>
+        db.diagnoses.filter((r) => r.incidentId === where.incidentId).sort((a, b) => b.createdAt - a.createdAt)[0] ?? null,
+      findUnique: async ({ where }) => db.diagnoses.find((r) => r.id === where.id) ?? null,
+      update: async ({ where, data }) => {
+        const record = db.diagnoses.find((r) => r.id === where.id);
+        record.state = JSON.parse(JSON.stringify(data.state));
+        return record;
       },
     },
     user: {
@@ -58,6 +73,7 @@ const createIncident = async (userId) => {
 beforeEach(() => {
   db.incidents.length = 0;
   db.users.length = 0;
+  db.diagnoses.length = 0;
   db.clock = 0;
   db.users.push(
     { id: 'user-a', name: 'Ana', email: 'ana@x.com', password: 'h', role: 'USER', createdAt: new Date() },
@@ -175,5 +191,80 @@ describe('/api/users (ADMIN)', () => {
 
     expect((await request(app).patch('/api/users/user-a/role').set(admin).send({ role: 'ROOT' })).status).toBe(400);
     expect((await request(app).patch('/api/users/nao-existe/role').set(admin).send({ role: 'TECH' })).status).toBe(404);
+  });
+});
+
+describe('PATCH /api/incidents/:id/diagnoses/:diagnosisId/hypotheses/:hypothesisId', () => {
+  const setup = async () => {
+    const id = await createIncident('user-a');
+    const run = await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+    const { diagnosis } = run.body;
+    return { id, diagnosis, hypothesis: diagnosis.state.hypotheses[0] };
+  };
+  const url = ({ id, diagnosis, hypothesis }) =>
+    `/api/incidents/${id}/diagnoses/${diagnosis.id}/hypotheses/${hypothesis.id}`;
+
+  it('USER recebe 403', async () => {
+    const ctx = await setup();
+
+    const response = await request(app).patch(url(ctx)).set(auth('user-a')).send({ status: 'CONFIRMED' });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('TECH confirma: status CONFIRMED, revisor salvo e evidência SUPPORTS da revisão técnica', async () => {
+    const ctx = await setup();
+
+    const response = await request(app).patch(url(ctx)).set(auth('tech-1', 'TECH')).send({ status: 'CONFIRMED' });
+
+    expect(response.status).toBe(200);
+    const { state } = response.body.diagnosis;
+    const reviewed = state.hypotheses.find((h) => h.id === ctx.hypothesis.id);
+    expect(reviewed).toMatchObject({ status: 'CONFIRMED', reviewedBy: 'Téo' });
+    expect(state.evidences).toContainEqual(
+      expect.objectContaining({ supports: ctx.hypothesis.id, polarity: 'SUPPORTS', source: 'Revisão técnica', description: 'Confirmada por Téo' }),
+    );
+    // Persistido: a próxima leitura já traz a revisão.
+    const reread = await request(app).get(`/api/incidents/${ctx.id}/diagnosis`).set(auth('user-a'));
+    expect(reread.body.diagnosis.state.hypotheses.find((h) => h.id === ctx.hypothesis.id).status).toBe('CONFIRMED');
+  });
+
+  it('descartar troca a evidência para REFUTES; reabrir remove a revisão', async () => {
+    const ctx = await setup();
+    const tech = auth('tech-1', 'TECH');
+    const reviewEvidences = (state) => state.evidences.filter((e) => e.source === 'Revisão técnica');
+
+    await request(app).patch(url(ctx)).set(tech).send({ status: 'CONFIRMED' });
+    const rejected = await request(app).patch(url(ctx)).set(tech).send({ status: 'REJECTED' });
+    expect(reviewEvidences(rejected.body.diagnosis.state)).toEqual([
+      expect.objectContaining({ polarity: 'REFUTES', description: 'Descartada por Téo' }),
+    ]);
+
+    const reopened = await request(app).patch(url(ctx)).set(tech).send({ status: 'OPEN' });
+    expect(reviewEvidences(reopened.body.diagnosis.state)).toEqual([]);
+    expect(reopened.body.diagnosis.state.hypotheses.find((h) => h.id === ctx.hypothesis.id)).toMatchObject({
+      status: 'OPEN',
+      reviewedBy: null,
+    });
+  });
+
+  it('hipótese ou diagnóstico inexistentes respondem 404; status inválido responde 400', async () => {
+    const ctx = await setup();
+    const tech = auth('tech-1', 'TECH');
+
+    const noHypothesis = await request(app)
+      .patch(url({ ...ctx, hypothesis: { id: 'h-x' } }))
+      .set(tech)
+      .send({ status: 'CONFIRMED' });
+    const noDiagnosis = await request(app)
+      .patch(url({ ...ctx, diagnosis: { id: 'diag-x' } }))
+      .set(tech)
+      .send({ status: 'CONFIRMED' });
+    const badStatus = await request(app).patch(url(ctx)).set(tech).send({ status: 'TALVEZ' });
+
+    expect(noHypothesis.status).toBe(404);
+    expect(noHypothesis.body.error).toBe('Hipótese não encontrada neste diagnóstico');
+    expect(noDiagnosis.status).toBe(404);
+    expect(badStatus.status).toBe(400);
   });
 });
