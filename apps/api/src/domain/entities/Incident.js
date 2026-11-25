@@ -1,4 +1,4 @@
-import { InvalidStatusTransitionError, ValidationError } from '../errors/DomainErrors.js';
+import { IncidentLockedError, InvalidStatusTransitionError, ValidationError } from '../errors/DomainErrors.js';
 import { isStaff } from './User.js';
 
 export const INCIDENT_STATUSES = Object.freeze(['OPEN', 'IN_PROGRESS', 'RESOLVED']);
@@ -42,7 +42,7 @@ export class Incident {
     this.diagnosisCount = diagnosisCount;
   }
 
-  static create({ title, description, equipment, userId }) {
+  static #assertContent({ title, description, equipment }) {
     if (typeof title !== 'string' || title.trim().length === 0) {
       throw new ValidationError('O título é obrigatório');
     }
@@ -52,6 +52,10 @@ export class Incident {
     if (typeof equipment !== 'string' || equipment.trim().length === 0) {
       throw new ValidationError('O equipamento é obrigatório');
     }
+  }
+
+  static create({ title, description, equipment, userId }) {
+    Incident.#assertContent({ title, description, equipment });
     if (typeof userId !== 'string' || userId.length === 0) {
       throw new ValidationError('O usuário do incidente é obrigatório');
     }
@@ -84,6 +88,27 @@ export class Incident {
       );
     }
     this.status = status;
+  }
+
+  /** Só o dono edita, e apenas enquanto o chamado está aberto (antes do atendimento). */
+  canBeEditedBy({ userId } = {}) {
+    return this.belongsTo(userId) && this.status === 'OPEN';
+  }
+
+  /** O dono exclui enquanto o chamado está aberto; o ADMIN exclui a qualquer momento. */
+  canBeDeletedBy({ userId, role } = {}) {
+    return role === 'ADMIN' || this.canBeEditedBy({ userId });
+  }
+
+  /** Altera o relato. O status e o dono não mudam por aqui. */
+  update({ title, description, equipment }) {
+    if (this.status !== 'OPEN') {
+      throw new IncidentLockedError();
+    }
+    Incident.#assertContent({ title, description, equipment });
+    this.title = title.trim();
+    this.description = description.trim();
+    this.equipment = equipment.trim();
   }
 
   belongsTo(userId) {

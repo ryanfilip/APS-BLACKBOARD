@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import IncidentDetails from '../pages/IncidentDetails.jsx';
 import api from '../services/api.js';
 
-vi.mock('../services/api.js', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
+vi.mock('../services/api.js', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }));
 
 const authState = vi.hoisted(() => ({ user: { id: 'user-1', name: 'Ana', role: 'USER' } }));
 vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => authState }));
@@ -26,6 +26,7 @@ function renderPage() {
         <Route path="/incidents/:id" element={<IncidentDetails />} />
         <Route path="/incidents/:id/diagnosis" element={<p>Página do diagnóstico</p>} />
         <Route path="/incidents/:id/diagnoses/:diagnosisId" element={<p>Diagnóstico antigo</p>} />
+        <Route path="/incidents/:id/edit" element={<p>Página de edição</p>} />
         <Route path="/dashboard" element={<p>Página da dashboard</p>} />
       </Routes>
     </MemoryRouter>,
@@ -37,6 +38,7 @@ describe('IncidentDetails', () => {
     api.get.mockReset();
     api.post.mockReset();
     api.patch.mockReset();
+    api.delete.mockReset();
     authState.user = { id: 'user-1', name: 'Ana', role: 'USER' };
   });
 
@@ -147,6 +149,51 @@ describe('IncidentDetails', () => {
       renderPage();
 
       expect(await screen.findByText('Este chamado ainda não foi diagnosticado.')).toBeTruthy();
+    });
+  });
+
+  describe('Editar e excluir', () => {
+    it('sem permissões, não mostra Editar nem Excluir', async () => {
+      api.get.mockResolvedValue({ data: { incident: { ...incident, permissions: { canEdit: false, canDelete: false } } } });
+
+      renderPage();
+      await screen.findByRole('heading', { name: 'Computador não liga' });
+
+      expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
+    });
+
+    it('Editar leva para o formulário de edição', async () => {
+      api.get.mockResolvedValue({ data: { incident: { ...incident, permissions: { canEdit: true, canDelete: true } } } });
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+
+      expect(await screen.findByText('Página de edição')).toBeTruthy();
+    });
+
+    it('Excluir pede confirmação, chama DELETE e volta para a dashboard', async () => {
+      api.get.mockResolvedValue({ data: { incident: { ...incident, permissions: { canEdit: true, canDelete: true } } } });
+      api.delete.mockResolvedValue({});
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+
+      expect(await screen.findByText('Página da dashboard')).toBeTruthy();
+      expect(api.delete).toHaveBeenCalledWith('/incidents/inc-1');
+      confirm.mockRestore();
+    });
+
+    it('cancelar a confirmação não exclui', async () => {
+      api.get.mockResolvedValue({ data: { incident: { ...incident, permissions: { canEdit: true, canDelete: true } } } });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+
+      expect(api.delete).not.toHaveBeenCalled();
+      confirm.mockRestore();
     });
   });
 });

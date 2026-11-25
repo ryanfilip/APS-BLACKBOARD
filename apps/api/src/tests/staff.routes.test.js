@@ -23,7 +23,12 @@ const { db, fakePrisma } = vi.hoisted(() => {
         Object.assign(record, data, { updatedAt: tick() });
         return withOwner(record);
       },
+      delete: async ({ where }) => {
+        const index = db.incidents.findIndex((r) => r.id === where.id);
+        return db.incidents.splice(index, 1)[0];
+      },
     },
+    $transaction: async (operations) => Promise.all(operations),
     diagnosis: {
       create: async ({ data }) => {
         const record = { id: `diag-${db.diagnoses.length + 1}`, createdAt: tick(), ...data, state: JSON.parse(JSON.stringify(data.state)) };
@@ -35,6 +40,11 @@ const { db, fakePrisma } = vi.hoisted(() => {
       findUnique: async ({ where }) => db.diagnoses.find((r) => r.id === where.id) ?? null,
       findMany: async ({ where }) =>
         db.diagnoses.filter((r) => r.incidentId === where.incidentId).sort((a, b) => b.createdAt - a.createdAt),
+      deleteMany: async ({ where }) => {
+        const before = db.diagnoses.length;
+        db.diagnoses = db.diagnoses.filter((r) => r.incidentId !== where.incidentId);
+        return { count: before - db.diagnoses.length };
+      },
       update: async ({ where, data }) => {
         const record = db.diagnoses.find((r) => r.id === where.id);
         record.state = JSON.parse(JSON.stringify(data.state));
@@ -75,7 +85,7 @@ const createIncident = async (userId) => {
 beforeEach(() => {
   db.incidents.length = 0;
   db.users.length = 0;
-  db.diagnoses.length = 0;
+  db.diagnoses = [];
   db.clock = 0;
   db.users.push(
     { id: 'user-a', name: 'Ana', email: 'ana@x.com', password: 'h', role: 'USER', createdAt: new Date() },
@@ -312,5 +322,73 @@ describe('Histórico de diagnósticos', () => {
 
     expect(crossIncident.status).toBe(404);
     expect(crossUser.status).toBe(404);
+  });
+});
+
+describe('Editar e excluir incidente', () => {
+  const edited = { title: 'Título corrigido', description: 'Descrição corrigida do problema', equipment: 'Notebook HP' };
+
+  it('GET /:id informa as permissões do usuário', async () => {
+    const id = await createIncident('user-a');
+
+    const owner = await request(app).get(`/api/incidents/${id}`).set(auth('user-a'));
+    const tech = await request(app).get(`/api/incidents/${id}`).set(auth('tech-1', 'TECH'));
+    const admin = await request(app).get(`/api/incidents/${id}`).set(auth('admin-1', 'ADMIN'));
+
+    expect(owner.body.incident.permissions).toEqual({ canEdit: true, canDelete: true });
+    expect(tech.body.incident.permissions).toEqual({ canEdit: false, canDelete: false });
+    expect(admin.body.incident.permissions).toEqual({ canEdit: false, canDelete: true });
+  });
+
+  it('o dono edita o chamado aberto (PUT)', async () => {
+    const id = await createIncident('user-a');
+
+    const response = await request(app).put(`/api/incidents/${id}`).set(auth('user-a')).send(edited);
+
+    expect(response.status).toBe(200);
+    expect(response.body.incident).toMatchObject(edited);
+    expect(db.incidents[0].title).toBe('Título corrigido');
+  });
+
+  it('PUT valida os campos (400), bloqueia outro USER (404), TECH (403) e chamado em atendimento (409)', async () => {
+    const id = await createIncident('user-a');
+
+    const invalid = await request(app).put(`/api/incidents/${id}`).set(auth('user-a')).send({ ...edited, title: 'a' });
+    const otherUser = await request(app).put(`/api/incidents/${id}`).set(auth('user-b')).send(edited);
+    const tech = await request(app).put(`/api/incidents/${id}`).set(auth('tech-1', 'TECH')).send(edited);
+    await request(app).patch(`/api/incidents/${id}/status`).set(auth('tech-1', 'TECH')).send({ status: 'IN_PROGRESS' });
+    const locked = await request(app).put(`/api/incidents/${id}`).set(auth('user-a')).send(edited);
+
+    expect(invalid.status).toBe(400);
+    expect(otherUser.status).toBe(404);
+    expect(tech.status).toBe(403);
+    expect(locked.status).toBe(409);
+    expect(locked.body.error).toBe('Só é possível alterar chamados com status Aberto');
+    expect(db.incidents[0].title).toBe('Computador com problemas');
+  });
+
+  it('o dono exclui o chamado aberto junto com os diagnósticos (204)', async () => {
+    const id = await createIncident('user-a');
+    await request(app).post(`/api/incidents/${id}/diagnose`).set(auth('user-a'));
+
+    const response = await request(app).delete(`/api/incidents/${id}`).set(auth('user-a'));
+
+    expect(response.status).toBe(204);
+    expect(db.incidents).toHaveLength(0);
+    expect(db.diagnoses).toHaveLength(0);
+  });
+
+  it('o dono não exclui chamado em atendimento (409); TECH não exclui (403); ADMIN exclui (204)', async () => {
+    const id = await createIncident('user-a');
+    await request(app).patch(`/api/incidents/${id}/status`).set(auth('tech-1', 'TECH')).send({ status: 'IN_PROGRESS' });
+
+    const owner = await request(app).delete(`/api/incidents/${id}`).set(auth('user-a'));
+    const tech = await request(app).delete(`/api/incidents/${id}`).set(auth('tech-1', 'TECH'));
+    const admin = await request(app).delete(`/api/incidents/${id}`).set(auth('admin-1', 'ADMIN'));
+
+    expect(owner.status).toBe(409);
+    expect(tech.status).toBe(403);
+    expect(admin.status).toBe(204);
+    expect(db.incidents).toHaveLength(0);
   });
 });

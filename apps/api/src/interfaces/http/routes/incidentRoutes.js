@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { ChangeIncidentStatus } from '../../../application/use-cases/incidents/ChangeIncidentStatus.js';
 import { CreateIncident } from '../../../application/use-cases/incidents/CreateIncident.js';
+import { DeleteIncident } from '../../../application/use-cases/incidents/DeleteIncident.js';
 import { GetIncident } from '../../../application/use-cases/incidents/GetIncident.js';
 import { ListIncidents } from '../../../application/use-cases/incidents/ListIncidents.js';
+import { UpdateIncident } from '../../../application/use-cases/incidents/UpdateIncident.js';
 import { PrismaIncidentRepository } from '../../../infra/database/repositories/PrismaIncidentRepository.js';
 import { IncidentController } from '../controllers/IncidentController.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
@@ -16,6 +18,8 @@ const controller = new IncidentController({
   listIncidents: new ListIncidents({ incidentRepository }),
   getIncident: new GetIncident({ incidentRepository }),
   changeIncidentStatus: new ChangeIncidentStatus({ incidentRepository }),
+  updateIncident: new UpdateIncident({ incidentRepository }),
+  deleteIncident: new DeleteIncident({ incidentRepository }),
 });
 
 const router = Router();
@@ -26,6 +30,8 @@ router.use(authMiddleware);
 router.post('/', controller.create);
 router.get('/', controller.list);
 router.get('/:id', controller.getById);
+router.put('/:id', controller.update);
+router.delete('/:id', controller.remove);
 router.patch('/:id/status', requireRole('TECH', 'ADMIN'), controller.changeStatus);
 
 export default router;

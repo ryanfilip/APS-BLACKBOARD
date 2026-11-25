@@ -4,6 +4,7 @@ import {
   EmailAlreadyExistsError,
   ForbiddenError,
   HypothesisNotFoundError,
+  IncidentLockedError,
   IncidentNotFoundError,
   InvalidCredentialsError,
   InvalidStatusTransitionError,
@@ -22,6 +23,7 @@ const STATUS_BY_ERROR = [
   [UserNotFoundError, 404],
   [EmailAlreadyExistsError, 409],
   [InvalidStatusTransitionError, 409],
+  [IncidentLockedError, 409],
 ];
 
 /** Traduz erros de validação/domínio em resposta HTTP; o resto segue para o errorHandler. */

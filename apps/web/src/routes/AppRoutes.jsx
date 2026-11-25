@@ -18,6 +18,7 @@ export default function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/incidents/new" element={<CreateIncident />} />
         <Route path="/incidents/:id" element={<IncidentDetails />} />
+        <Route path="/incidents/:id/edit" element={<CreateIncident />} />
         <Route path="/incidents/:id/diagnosis" element={<DiagnosisResult />} />
         <Route path="/incidents/:id/diagnoses/:diagnosisId" element={<DiagnosisResult />} />
       </Route>

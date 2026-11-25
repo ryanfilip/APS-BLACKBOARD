@@ -84,6 +84,23 @@ export class PrismaIncidentRepository extends IncidentRepository {
     return toEntity(record);
   }
 
+  async update(incident) {
+    const record = await this.client.incident.update({
+      where: { id: incident.id },
+      data: { title: incident.title, description: incident.description, equipment: incident.equipment },
+      include: LIST_INCLUDE,
+    });
+    return toEntity(record);
+  }
+
+  // A FK Diagnosis -> Incident é RESTRICT: os diagnósticos são apagados antes, na mesma transação.
+  async delete(id) {
+    await this.client.$transaction([
+      this.client.diagnosis.deleteMany({ where: { incidentId: id } }),
+      this.client.incident.delete({ where: { id } }),
+    ]);
+  }
+
   async updateStatus(id, status) {
     const record = await this.client.incident.update({
       where: { id },

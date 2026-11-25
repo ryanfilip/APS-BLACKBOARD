@@ -68,13 +68,33 @@ export default function IncidentDetails() {
     }
   }
 
+  async function handleDelete() {
+    if (!window.confirm('Excluir este chamado e todos os seus diagnósticos? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    setActionError('');
+    setBusy(true);
+    try {
+      await api.delete(`/incidents/${id}`);
+      navigate('/dashboard', { replace: true, state: { successMessage: 'Chamado excluído com sucesso.' } });
+    } catch (err) {
+      setActionError(err.response?.data?.error ?? 'Não foi possível excluir o chamado.');
+      setBusy(false);
+    }
+  }
+
   async function handleStatusChange(status) {
     setActionError('');
     setMessage('');
     setBusy(true);
     try {
       const { data } = await api.patch(`/incidents/${id}/status`, { status });
-      setIncident((current) => ({ ...current, ...data.incident }));
+      // Editar só vale com o chamado aberto; quem pode excluir continua podendo (ADMIN).
+      setIncident((current) => ({
+        ...current,
+        ...data.incident,
+        permissions: { ...current.permissions, canEdit: false },
+      }));
       setMessage(`Status alterado para "${STATUS_LABELS[status]}".`);
     } catch (err) {
       setActionError(err.response?.data?.error ?? 'Não foi possível alterar o status.');
@@ -231,6 +251,25 @@ export default function IncidentDetails() {
                   className="rounded border border-teal-700 bg-white px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50"
                 >
                   Ver Diagnóstico
+                </button>
+              )}
+              {incident.permissions?.canEdit && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/incidents/${id}/edit`)}
+                  className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Editar
+                </button>
+              )}
+              {incident.permissions?.canDelete && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={busy}
+                  className="rounded border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                >
+                  Excluir
                 </button>
               )}
             </div>

@@ -58,3 +58,9 @@ export class HypothesisNotFoundError extends DomainError {
     super(message);
   }
 }
+
+export class IncidentLockedError extends DomainError {
+  constructor(message = 'Só é possível alterar chamados com status Aberto') {
+    super(message);
+  }
+}

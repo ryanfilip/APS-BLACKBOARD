@@ -31,6 +31,18 @@ export class IncidentRepository {
     throw new Error('Not implemented');
   }
 
+  /** Salva título, descrição e equipamento e devolve o incidente atualizado. */
+  // eslint-disable-next-line no-unused-vars
+  async update(incident) {
+    throw new Error('Not implemented');
+  }
+
+  /** Exclui o incidente e os diagnósticos dele. */
+  // eslint-disable-next-line no-unused-vars
+  async delete(id) {
+    throw new Error('Not implemented');
+  }
+
   /** Salva o novo status e devolve o incidente atualizado. */
   // eslint-disable-next-line no-unused-vars
   async updateStatus(id, status) {
